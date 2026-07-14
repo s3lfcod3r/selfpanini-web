@@ -317,8 +317,10 @@
     <div class="section-title">Tausch-Link</div>
     <p class="lead" style="margin:0 0 8px">Ein Freund öffnet den Link und sieht sofort, was ihr tauschen könnt.</p>
     <div class="row-btns">
-      <button class="btn btn-primary" id="btnTradeLink">Tausch-Link erstellen &amp; kopieren</button>
+      <button class="btn btn-primary" id="btnShortLink">Kurzer Link (Cloud)</button>
+      <button class="btn btn-ghost" id="btnTradeLink">Langer Link (ohne Cloud)</button>
     </div>
+    <p class="lead" style="margin:6px 0 0">Kurzer Link ist winzig, braucht aber Internet. Der lange Link läuft komplett ohne Cloud.</p>
 
     <div class="section-title">Menü schließen</div>
     <div class="row-btns">
@@ -802,33 +804,39 @@
   function openTradeFromHash(){
     var h=location.hash.slice(1); if(!h) return;
     var params={}; h.split('&').forEach(function(kv){ var p=kv.split('='); params[p[0]]=p[1]; });
-    if(!params.t) return;
     var fname = params.n ? decodeURIComponent(params.n) : 'Dein Freund';
-    decodeState(decodeURIComponent(params.t)).then(function(friend){
-      if(!friend){ return; }
-      var iHaveAny = Object.keys(state).length>0;
-      var youGet=[], youGive=[];
-      ORDER.forEach(function(id){
-        var mine=countOf(id), fr=friend[id]||0;
-        if(fr>1 && mine===0) youGet.push(labelFor(id));
-        if(mine>1 && fr===0) youGive.push(labelFor(id));
-      });
-      var frMiss=[], frDup=[];
-      ORDER.forEach(function(id){ var v=friend[id]||0; if(v===0)frMiss.push(labelFor(id)); if(v>1)frDup.push(labelFor(id)); });
-
-      document.getElementById('tradeTitle').textContent = fname+' – Tausch';
-      var body=document.getElementById('tradeBody'); body.innerHTML='';
-      if(iHaveAny){
-        document.getElementById('tradeLead').textContent='Vergleich mit deiner Sammlung:';
-        body.appendChild(matchBlock('get','Das kannst DU von '+fname+' bekommen', youGet, fname+' hat diese doppelt und dir fehlen sie.'));
-        body.appendChild(matchBlock('give','Das kann '+fname+' von DIR bekommen', youGive, 'Du hast diese doppelt und '+fname+' fehlen sie.'));
-      } else {
-        document.getElementById('tradeLead').textContent='So sieht die Sammlung von '+fname+' aus. Trage erst deine eigenen Sticker ein, dann siehst du den direkten Tausch!';
-        body.appendChild(matchBlock('give',fname+' hat doppelt', frDup, 'Diese Sticker könntest du bekommen.'));
-        body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss.slice(0,60), frMiss.length+' Sticker fehlen'+(frMiss.length>60?' (erste 60)':'')+'.'));
-      }
-      openModal('tradeModal');
+    if(params.t){
+      decodeState(decodeURIComponent(params.t)).then(function(friend){ if(friend) renderTrade(friend, fname); });
+    } else if(params.s){
+      fetch(WORKER+'/a/'+encodeURIComponent(params.s)).then(function(r){return r.json();}).then(function(d){
+        if(d && !d.empty && d.state) renderTrade(d.state, d.nick||fname);
+        else toast('Tausch-Code nicht gefunden');
+      }).catch(function(){ toast('Cloud nicht erreichbar'); });
+    }
+  }
+  function renderTrade(friend, fname){
+    var iHaveAny = Object.keys(state).length>0;
+    var youGet=[], youGive=[];
+    ORDER.forEach(function(id){
+      var mine=countOf(id), fr=friend[id]||0;
+      if(fr>1 && mine===0) youGet.push(labelFor(id));
+      if(mine>1 && fr===0) youGive.push(labelFor(id));
     });
+    var frMiss=[], frDup=[];
+    ORDER.forEach(function(id){ var v=friend[id]||0; if(v===0)frMiss.push(labelFor(id)); if(v>1)frDup.push(labelFor(id)); });
+
+    document.getElementById('tradeTitle').textContent = fname+' – Tausch';
+    var body=document.getElementById('tradeBody'); body.innerHTML='';
+    if(iHaveAny){
+      document.getElementById('tradeLead').textContent='Vergleich mit deiner Sammlung:';
+      body.appendChild(matchBlock('get','Das kannst DU von '+fname+' bekommen', youGet, fname+' hat diese doppelt und dir fehlen sie.'));
+      body.appendChild(matchBlock('give','Das kann '+fname+' von DIR bekommen', youGive, 'Du hast diese doppelt und '+fname+' fehlen sie.'));
+    } else {
+      document.getElementById('tradeLead').textContent='So sieht die Sammlung von '+fname+' aus. Trage erst deine eigenen Sticker ein, dann siehst du den direkten Tausch!';
+      body.appendChild(matchBlock('give',fname+' hat doppelt', frDup, 'Diese Sticker könntest du bekommen.'));
+      body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss.slice(0,60), frMiss.length+' Sticker fehlen'+(frMiss.length>60?' (erste 60)':'')+'.'));
+    }
+    openModal('tradeModal');
   }
   function matchBlock(kind,title,arr,hint){
     var d=document.createElement('div'); d.className='match';
@@ -869,11 +877,22 @@
 
   document.getElementById('btnCopyList').onclick=function(){ copy(listText(), 'Listen kopiert!'); };
   document.getElementById('btnWhats').onclick=function(){ window.open('https://wa.me/?text='+encodeURIComponent(listText()), '_blank'); };
+  function shareOrCopy(link, msg){
+    if(navigator.share){ navigator.share({title:'Mein WM 2026 Album', text:'Lass uns Sticker tauschen!', url:link}).catch(function(){ copy(link,msg); }); }
+    else { copy(link,msg); }
+  }
   document.getElementById('btnTradeLink').onclick=function(){
-    buildTradeLink().then(function(link){
-      if(navigator.share){ navigator.share({title:'Mein WM 2026 Album', text:'Lass uns Sticker tauschen!', url:link}).catch(function(){ copy(link,'Tausch-Link kopiert!'); }); }
-      else { copy(link,'Tausch-Link kopiert!'); }
-    });
+    buildTradeLink().then(function(link){ shareOrCopy(link,'Tausch-Link kopiert!'); });
+  };
+  // Kurzer Cloud-Link: Sammlung als Schnappschuss unter kurzem Code ablegen
+  function genShareCode(){ var A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s=''; for(var i=0;i<6;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
+  document.getElementById('btnShortLink').onclick=function(){
+    var code=genShareCode();
+    var link=location.href.split('#')[0]+'#s='+code;
+    var payload=JSON.stringify({v:1, nick:nick, state:state, updatedAt:Date.now()});
+    fetch(WORKER+'/a/'+encodeURIComponent(code), {method:'PUT', headers:{'Content-Type':'application/json'}, body:payload})
+      .then(function(r){ if(r.ok) shareOrCopy(link,'Kurzer Tausch-Link kopiert!'); else toast('Cloud nicht erreichbar'); })
+      .catch(function(){ toast('Cloud nicht erreichbar'); });
   };
 
   /* ---------- Backup ---------- */
@@ -960,7 +979,7 @@
   renderSyncUI();
   if(syncCode){ cloudPull(false); startPoll(); }
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && syncCode) cloudPull(false); });
-  if(location.hash.indexOf('t=')>=0){ setTimeout(openTradeFromHash, 250); }
+  if(location.hash.indexOf('t=')>=0 || location.hash.indexOf('s=')>=0){ setTimeout(openTradeFromHash, 250); }
 
 })();
 </script>
