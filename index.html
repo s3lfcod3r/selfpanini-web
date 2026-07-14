@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SelfPanini · WM 2026 Sammelalbum</title>
+<meta name="description" content="Einfacher Sticker-Tracker für das WM 2026 Sammelalbum: Haben, Fehlt und Doppelte eintragen und mit Freunden tauschen." />
+<meta name="theme-color" content="#080c11" />
+<link rel="icon" href="assets/shield.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ---------- Self Design Tokens ---------- */
+  :root{
+    --self-bg-0:#080c11; --self-bg-1:#0d1117; --self-bg-2:#161b22; --self-bg-3:#1c2333;
+    --self-line:rgba(157,189,208,.10); --self-line-strong:rgba(157,189,208,.22);
+    --self-teal:#33a78c; --self-teal-bright:#43d3ad; --self-teal-deep:#1f7763; --self-cyan:#00e5c8;
+    --self-ice:#9dbdd0; --self-ice-bright:#bcd9e9;
+    --self-green:#3fb950; --self-red:#f85149; --self-yellow:#d29922;
+    --self-text:#eef4f7; --self-text-2:#8a9caa; --self-text-3:#556673;
+    --self-font-sans:"Exo 2",system-ui,-apple-system,sans-serif;
+    --self-font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",monospace;
+    --self-radius:10px; --self-radius-sm:6px;
+    --self-glow-teal:0 0 60px -12px rgba(51,167,140,.45);
+    --self-ease:cubic-bezier(.16,1,.3,1); --self-dur-fast:150ms; --self-dur:300ms;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--self-font-sans);color:var(--self-text);
+    background:
+      radial-gradient(900px 480px at 82% -160px, rgba(51,167,140,.16) 0%, transparent 60%),
+      radial-gradient(700px 420px at 0% 4%, rgba(0,229,200,.06) 0%, transparent 55%),
+      var(--self-bg-0);
+    -webkit-text-size-adjust:100%;padding-bottom:44px;overflow-x:hidden;font-size:15px;line-height:1.5;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 14px}
+  .mono{font-family:var(--self-font-mono)}
+
+  /* ---------- Header ---------- */
+  header.top{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--self-line)}
+  header.top img.logo{height:78px;width:auto;display:block;margin:0 auto 12px;
+    filter:drop-shadow(0 6px 20px rgba(0,0,0,.5))}
+  header.top p{margin:0;color:var(--self-text-2);font-size:.95rem;max-width:32ch;margin:0 auto}
+
+  /* ---------- Sticky Fortschritt ---------- */
+  .progress-bar{position:sticky;top:0;z-index:30;background:rgba(8,12,17,.94);
+    border-bottom:1px solid var(--self-line)}
+  .progress-inner{display:flex;align-items:center;gap:14px;padding:11px 0}
+  .ring{flex:0 0 auto}
+  .prog-txt{flex:1;min-width:0}
+  .prog-txt b{font-size:1.2rem;font-family:var(--self-font-mono);font-weight:600;letter-spacing:-.5px}
+  .prog-txt .sub{color:var(--self-text-2);font-size:.82rem;font-family:var(--self-font-mono)}
+  .track{height:9px;border-radius:99px;background:var(--self-bg-3);overflow:hidden;margin-top:6px;
+    box-shadow:inset 0 0 0 1px var(--self-line)}
+  .track > i{display:block;height:100%;width:0;border-radius:99px;
+    background:linear-gradient(90deg,var(--self-teal),var(--self-cyan));transition:width .4s var(--self-ease)}
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}
+  .search{flex:1;min-width:170px;position:relative}
+  .search input{width:100%;padding:12px 14px 12px 40px;border-radius:var(--self-radius-sm);
+    border:1px solid var(--self-line-strong);font-size:1rem;background:var(--self-bg-2);
+    color:var(--self-text);font-family:inherit}
+  .search input::placeholder{color:var(--self-text-3)}
+  .search input:focus{outline:none;border-color:var(--self-teal);box-shadow:0 0 0 3px rgba(51,167,140,.18)}
+  .search svg{position:absolute;left:13px;top:13px;color:var(--self-text-3)}
+  .btn{border:1px solid transparent;border-radius:var(--self-radius-sm);padding:12px 16px;font-size:.92rem;
+    font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;
+    white-space:nowrap;transition:all var(--self-dur-fast) var(--self-ease)}
+  .btn-primary{background:linear-gradient(135deg,var(--self-teal),var(--self-teal-deep));color:#05110d}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{background:var(--self-bg-3);color:var(--self-text);border-color:var(--self-line-strong)}
+  .btn-ghost:hover{border-color:var(--self-teal)}
+  .btn:active{transform:translateY(1px)}
+
+  /* ---------- Legende ---------- */
+  .legend{display:flex;gap:16px;flex-wrap:wrap;background:var(--self-bg-2);
+    border:1px solid var(--self-line);border-radius:var(--self-radius);padding:12px 16px;margin:8px 0 4px;
+    font-size:.88rem;color:var(--self-text-2)}
+  .legend b{color:var(--self-text)}
+  .chip{display:inline-flex;align-items:center;gap:8px}
+  .dot{width:18px;height:18px;border-radius:5px;display:inline-block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}
+  .dot.miss{background:var(--self-bg-3);box-shadow:inset 0 0 0 1px var(--self-line-strong)}
+  .dot.have{background:var(--self-green)}
+  .dot.dup{background:var(--self-yellow)}
+
+  /* ---------- Team-Sprungnavigation ---------- */
+  .jump{display:flex;gap:6px;overflow-x:auto;padding:12px 0 4px;-webkit-overflow-scrolling:touch}
+  .jump button{flex:0 0 auto;border:1px solid var(--self-line-strong);background:var(--self-bg-2);
+    border-radius:99px;padding:6px 12px;font-size:.76rem;cursor:pointer;
+    font-family:var(--self-font-mono);color:var(--self-text-2);letter-spacing:.5px;
+    transition:all var(--self-dur-fast) var(--self-ease)}
+  .jump button:hover{border-color:var(--self-teal);color:var(--self-text)}
+
+  /* ---------- Team-Karten ---------- */
+  .team{background:var(--self-bg-2);border:1px solid var(--self-line);border-radius:var(--self-radius);
+    margin:14px 0;overflow:hidden;scroll-margin-top:150px;transition:box-shadow var(--self-dur) var(--self-ease)}
+  .team-head{display:flex;align-items:center;gap:12px;padding:13px 15px;cursor:pointer;
+    background:var(--self-bg-1);border-bottom:1px solid var(--self-line);position:relative}
+  .team-head::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
+  .team-head .flag-img{width:36px;height:25px;object-fit:cover;border-radius:4px;flex:0 0 auto;display:block;
+    box-shadow:0 0 0 1px var(--self-line-strong), 0 2px 6px rgba(0,0,0,.4)}
+  .fl-fallback{width:36px;height:25px;border-radius:4px;background:var(--self-bg-3);
+    display:grid;place-items:center;font-size:.6rem;font-weight:700;flex:0 0 auto;
+    font-family:var(--self-font-mono);color:var(--self-text-2)}
+  .team-head .nm{flex:1;min-width:0}
+  .team-head .nm b{display:block;font-size:1.02rem;font-weight:700}
+  .team-head .nm span{font-size:.72rem;color:var(--self-text-3);font-family:var(--self-font-mono);letter-spacing:1px}
+  .team-head .cnt{font-size:.8rem;font-weight:500;font-family:var(--self-font-mono);background:var(--self-bg-3);
+    color:var(--self-text-2);padding:5px 10px;border-radius:99px;min-width:58px;text-align:center;
+    box-shadow:inset 0 0 0 1px var(--self-line)}
+  .team-head .done-badge{display:none;font-family:var(--self-font-mono);font-size:.66rem;font-weight:600;
+    letter-spacing:.12em;text-transform:uppercase;color:#05110d;background:var(--self-teal);
+    padding:5px 9px;border-radius:99px}
+  .team-body{padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:8px}
+
+  /* Glitzer-Special: Cyan-Signal statt Regenbogen */
+  .team-head.special::before{background:var(--self-cyan)}
+  .team-head.special .nm span{color:var(--self-cyan)}
+  .team-head .special-tag{display:none}
+  .team-head.special .special-tag{display:inline-block;font-family:var(--self-font-mono);font-size:.6rem;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--self-cyan);
+    box-shadow:inset 0 0 0 1px rgba(0,229,200,.4);padding:4px 8px;border-radius:99px}
+
+  /* Team komplett = Teal-Belohnung (Signatur, sparsam) */
+  .team.done{box-shadow:0 0 0 1px var(--self-teal), var(--self-glow-teal)}
+  .team.done .team-head::before{background:var(--self-teal)}
+  .team.done .team-head .cnt{color:var(--self-teal-bright)}
+  .team.done .team-head .done-badge{display:block;animation:pill .4s var(--self-ease)}
+  @keyframes pill{0%{transform:scale(.4);opacity:0}100%{transform:scale(1);opacity:1}}
+
+  /* ---------- Zellen ---------- */
+  /* leere Zelle = Album-Klebeplatz */
+  .cell{position:relative;aspect-ratio:1/1;border-radius:var(--self-radius-sm);
+    border:1.5px dashed var(--self-line-strong);background:var(--self-bg-3);
+    color:var(--self-text-2);font-weight:600;font-size:1rem;font-family:var(--self-font-mono);
+    display:grid;place-items:center;cursor:pointer;user-select:none;
+    box-shadow:inset 0 2px 8px rgba(0,0,0,.28);
+    transition:transform .14s cubic-bezier(.34,1.56,.64,1), background var(--self-dur-fast) var(--self-ease), border-color var(--self-dur-fast) var(--self-ease);
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  .cell small{position:absolute;top:3px;left:6px;font-size:.5rem;opacity:.6;font-weight:500;letter-spacing:.3px}
+  .cell:active{transform:scale(.9)}
+  .cell:focus-visible{outline:3px solid var(--self-teal);outline-offset:2px;z-index:2}
+  /* gefüllt = aufgeklebter Sticker */
+  .cell.have,.cell.dup{border-style:solid;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+  .cell.have{background:linear-gradient(160deg,#57cf68 0%,var(--self-green) 60%,#2e9840 100%);
+    border-color:#2e9840;color:#04210b}
+  .cell.dup{background:linear-gradient(160deg,#e8b23a 0%,var(--self-yellow) 58%,#a9780f 100%);
+    border-color:#a9780f;color:#241a00}
+  .cell.have::before,.cell.dup::before{content:"";position:absolute;inset:0;border-radius:5px;
+    background:linear-gradient(135deg,rgba(255,255,255,.4) 0%,rgba(255,255,255,0) 45%);pointer-events:none}
+  .cell.pop{animation:stick .34s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes stick{0%{transform:rotate(var(--tilt,0deg)) scale(.5)}60%{transform:rotate(var(--tilt,0deg)) scale(1.14)}100%{transform:rotate(var(--tilt,0deg)) scale(1)}}
+  /* nur aufgeklebte Sticker leicht schief */
+  .cell.have,.cell.dup{transform:rotate(var(--tilt,0deg))}
+  .cell.have:active,.cell.dup:active{transform:rotate(var(--tilt,0deg)) scale(.9)}
+  .cell .badge{position:absolute;bottom:-6px;right:-6px;background:var(--self-bg-0);color:var(--self-text);
+    border:1px solid var(--self-line-strong);border-radius:99px;min-width:20px;height:20px;padding:0 4px;
+    font-size:.64rem;font-family:var(--self-font-mono);display:grid;place-items:center;z-index:2}
+
+  /* ---------- Modal ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(4,7,10,.72);display:none;align-items:flex-end;
+    justify-content:center;z-index:60}
+  .overlay.open{display:flex}
+  .sheet{background:var(--self-bg-1);width:100%;max-width:560px;border-radius:16px 16px 0 0;
+    max-height:88vh;overflow:auto;border:1px solid var(--self-line-strong);border-bottom:none;
+    box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:rise .25s var(--self-ease);padding:6px 18px 26px}
+  @media(min-width:620px){.overlay{align-items:center}.sheet{border-radius:16px;border-bottom:1px solid var(--self-line-strong)}}
+  @keyframes rise{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
+  .grabber{width:44px;height:5px;border-radius:99px;background:var(--self-line-strong);margin:10px auto 8px}
+  .sheet h2{margin:6px 0 2px;font-size:1.25rem;font-weight:800}
+  .sheet .lead{color:var(--self-text-2);font-size:.9rem;margin:0 0 14px}
+  .listbox{background:var(--self-bg-2);border:1px solid var(--self-line);border-radius:var(--self-radius);
+    padding:12px;font-size:.9rem;line-height:1.7;max-height:200px;overflow:auto;white-space:pre-wrap;
+    word-break:break-word;font-family:var(--self-font-mono);color:var(--self-text-2)}
+  .row-btns{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+  .row-btns .btn{flex:1;justify-content:center;min-width:130px}
+  .field{margin:10px 0}
+  .field label{display:block;font-size:.68rem;color:var(--self-text-3);margin-bottom:6px;font-weight:600;
+    font-family:var(--self-font-mono);letter-spacing:.14em;text-transform:uppercase}
+  .field input{width:100%;padding:11px 13px;border:1px solid var(--self-line-strong);
+    border-radius:var(--self-radius-sm);font-size:1rem;font-family:inherit;background:var(--self-bg-2);color:var(--self-text)}
+  .field input:focus{outline:none;border-color:var(--self-teal);box-shadow:0 0 0 3px rgba(51,167,140,.18)}
+  .section-title{font-size:.66rem;text-transform:uppercase;letter-spacing:.16em;color:var(--self-text-3);
+    font-weight:600;margin:18px 0 6px;font-family:var(--self-font-mono)}
+  .match{border:1px solid var(--self-line);border-radius:var(--self-radius);overflow:hidden;margin:8px 0}
+  .match .mh{padding:10px 12px;font-weight:700;font-size:.9rem}
+  .match .mh.get{background:rgba(63,185,80,.14);color:var(--self-green);border-bottom:1px solid var(--self-line)}
+  .match .mh.give{background:rgba(210,153,34,.14);color:var(--self-yellow);border-bottom:1px solid var(--self-line)}
+  .match .mb{padding:10px 12px;font-size:.88rem;line-height:1.7;color:var(--self-text-2);font-family:var(--self-font-mono)}
+  .muted{color:var(--self-text-3)}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);
+    background:var(--self-bg-3);color:var(--self-text);padding:12px 18px;border-radius:var(--self-radius-sm);
+    font-weight:600;border:1px solid var(--self-teal);box-shadow:0 12px 40px rgba(0,0,0,.6);opacity:0;
+    pointer-events:none;transition:.25s var(--self-ease);z-index:80;font-size:.9rem}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  footer{text-align:center;color:var(--self-text-3);font-size:.78rem;margin-top:28px;line-height:1.7}
+  .hidden{display:none!important}
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  }
+
+  /* ---------- Handy & Tablet ---------- */
+  @media (max-width:680px){
+    header.top img.logo{height:64px}
+    .team-body{grid-template-columns:repeat(auto-fill,minmax(50px,1fr));gap:7px;padding:10px}
+    .cell{font-size:.9rem}
+    .team-head{padding:12px}
+    .team-head .nm b{font-size:.98rem}
+  }
+  @media (max-width:400px){
+    .team-body{grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}
+    .cell{font-size:.82rem}
+    .cell small{font-size:.46rem}
+    .toolbar .btn{flex:1;justify-content:center}
+  }
+  @media (pointer:coarse){.cell{min-height:46px}.jump button{padding:8px 14px}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <img class="logo" src="assets/logo.png" alt="SelfPanini" width="102" height="78" />
+    <p>Sammle, hake ab und tausche – dein WM 2026 Album.</p>
+  </div>
+</header>
+
+<div class="progress-bar">
+  <div class="wrap progress-inner">
+    <div class="ring">
+      <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
+        <circle cx="26" cy="26" r="22" fill="none" stroke="#1c2333" stroke-width="7"/>
+        <circle id="ringFill" cx="26" cy="26" r="22" fill="none" stroke="#33a78c" stroke-width="7"
+          stroke-linecap="round" stroke-dasharray="138.2" stroke-dashoffset="138.2"
+          transform="rotate(-90 26 26)"/>
+      </svg>
+    </div>
+    <div class="prog-txt">
+      <b><span id="haveCount">0</span> / 980</b> <span id="pct" class="sub">0 %</span>
+      <div class="track"><i id="trackFill"></i></div>
+      <div class="sub" id="dupLine">Noch keine doppelten Sticker</div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="toolbar">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="search" inputmode="text" placeholder="Suchen: z. B. GER 4 oder Deutschland" />
+    </div>
+    <button class="btn btn-primary" id="btnShare">Teilen</button>
+    <button class="btn btn-ghost" id="btnMenu">Mehr</button>
+  </div>
+
+  <div class="legend">
+    <span class="chip"><span class="dot miss"></span> <b>Leer</b> = fehlt</span>
+    <span class="chip"><span class="dot have"></span> <b>Grün</b> = hab ich</span>
+    <span class="chip"><span class="dot dup"></span> <b>Gelb</b> = doppelt</span>
+    <span class="chip muted">Antippen zählt hoch · lange drücken zählt runter</span>
+  </div>
+
+  <div class="jump" id="jump"></div>
+
+  <div id="teams"></div>
+
+  <footer>
+    SelfPanini · Alles wird nur auf deinem Gerät gespeichert – kein Konto, keine Anmeldung.<br>
+    Inoffizieller Sammelhelfer, nicht mit Panini verbunden.
+  </footer>
+</div>
+
+<!-- Teilen-Modal -->
+<div class="overlay" id="shareModal">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h2>Teilen &amp; Tauschen</h2>
+    <p class="lead">Verschicke deine Listen oder einen Tausch-Link an Freunde.</p>
+
+    <div class="field">
+      <label for="nick">Dein Name (für Freunde sichtbar)</label>
+      <input id="nick" type="text" maxlength="20" placeholder="z. B. Tom" />
+    </div>
+
+    <div class="section-title">Meine Listen</div>
+    <div class="listbox" id="listPreview">–</div>
+    <div class="row-btns">
+      <button class="btn btn-ghost" id="btnCopyList">Listen kopieren</button>
+      <button class="btn btn-primary" id="btnWhats">Per WhatsApp</button>
+    </div>
+
+    <div class="section-title">Tausch-Link</div>
+    <p class="lead" style="margin:0 0 8px">Ein Freund öffnet den Link und sieht sofort, was ihr tauschen könnt.</p>
+    <div class="row-btns">
+      <button class="btn btn-primary" id="btnTradeLink">Tausch-Link erstellen &amp; kopieren</button>
+    </div>
+
+    <div class="section-title">Menü schließen</div>
+    <div class="row-btns">
+      <button class="btn btn-ghost" id="btnCloseShare" style="flex:1">Fertig</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mehr-Modal -->
+<div class="overlay" id="menuModal">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h2>Mehr</h2>
+    <p class="lead">Sicherung &amp; Verwaltung deiner Sammlung.</p>
+    <div class="row-btns">
+      <button class="btn btn-ghost" id="btnExport">Backup speichern</button>
+      <button class="btn btn-ghost" id="btnImport">Backup laden</button>
+    </div>
+    <input type="file" id="fileImport" accept="application/json" class="hidden" />
+    <div class="section-title">Zurücksetzen</div>
+    <div class="row-btns">
+      <button class="btn btn-ghost" id="btnReset" style="color:var(--self-red);border-color:rgba(248,81,73,.4)">Alles zurücksetzen</button>
+    </div>
+    <div class="row-btns">
+      <button class="btn btn-ghost" id="btnCloseMenu" style="flex:1">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tausch-Ansicht-Modal -->
+<div class="overlay" id="tradeModal">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h2 id="tradeTitle">Tausch-Vorschlag</h2>
+    <p class="lead" id="tradeLead">Vergleich mit deiner Sammlung.</p>
+    <div id="tradeBody"></div>
+    <div class="row-btns">
+      <button class="btn btn-primary" id="btnCloseTrade" style="flex:1">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Daten: 48 Teams (alphabetisch) + Glitzer FCW 00–19 ---------- */
+  var TEAMS = [
+    {code:'EGY',name:'Ägypten',iso:'eg'},
+    {code:'ALG',name:'Algerien',iso:'dz'},
+    {code:'ARG',name:'Argentinien',iso:'ar'},
+    {code:'AUS',name:'Australien',iso:'au'},
+    {code:'BEL',name:'Belgien',iso:'be'},
+    {code:'BIH',name:'Bosnien-Herzegowina',iso:'ba'},
+    {code:'BRA',name:'Brasilien',iso:'br'},
+    {code:'CUW',name:'Curaçao',iso:'cw'},
+    {code:'COD',name:'DR Kongo',iso:'cd'},
+    {code:'GER',name:'Deutschland',iso:'de'},
+    {code:'ECU',name:'Ecuador',iso:'ec'},
+    {code:'CIV',name:'Elfenbeinküste',iso:'ci'},
+    {code:'ENG',name:'England',iso:'gb-eng'},
+    {code:'FRA',name:'Frankreich',iso:'fr'},
+    {code:'GHA',name:'Ghana',iso:'gh'},
+    {code:'HAI',name:'Haiti',iso:'ht'},
+    {code:'IRQ',name:'Irak',iso:'iq'},
+    {code:'IRN',name:'Iran',iso:'ir'},
+    {code:'JPN',name:'Japan',iso:'jp'},
+    {code:'JOR',name:'Jordanien',iso:'jo'},
+    {code:'CAN',name:'Kanada',iso:'ca'},
+    {code:'CPV',name:'Kap Verde',iso:'cv'},
+    {code:'QAT',name:'Katar',iso:'qa'},
+    {code:'COL',name:'Kolumbien',iso:'co'},
+    {code:'CRO',name:'Kroatien',iso:'hr'},
+    {code:'MAR',name:'Marokko',iso:'ma'},
+    {code:'MEX',name:'Mexiko',iso:'mx'},
+    {code:'NZL',name:'Neuseeland',iso:'nz'},
+    {code:'NED',name:'Niederlande',iso:'nl'},
+    {code:'NOR',name:'Norwegen',iso:'no'},
+    {code:'AUT',name:'Österreich',iso:'at'},
+    {code:'PAN',name:'Panama',iso:'pa'},
+    {code:'PAR',name:'Paraguay',iso:'py'},
+    {code:'POR',name:'Portugal',iso:'pt'},
+    {code:'KSA',name:'Saudi-Arabien',iso:'sa'},
+    {code:'SCO',name:'Schottland',iso:'gb-sct'},
+    {code:'SWE',name:'Schweden',iso:'se'},
+    {code:'SUI',name:'Schweiz',iso:'ch'},
+    {code:'SEN',name:'Senegal',iso:'sn'},
+    {code:'ESP',name:'Spanien',iso:'es'},
+    {code:'RSA',name:'Südafrika',iso:'za'},
+    {code:'KOR',name:'Südkorea',iso:'kr'},
+    {code:'CZE',name:'Tschechien',iso:'cz'},
+    {code:'TUN',name:'Tunesien',iso:'tn'},
+    {code:'TUR',name:'Türkei',iso:'tr'},
+    {code:'URU',name:'Uruguay',iso:'uy'},
+    {code:'USA',name:'USA',iso:'us'},
+    {code:'UZB',name:'Usbekistan',iso:'uz'}
+  ];
+  var PER_TEAM = 20;
+  var SPECIAL = {code:'FCW', name:'Glitzer-Sticker', count:20}; // FCW 00 .. FCW 19
+
+  // Feste Reihenfolge aller 980 Sticker-IDs (Basis der Link-Kodierung)
+  var ORDER = [];
+  TEAMS.forEach(function(t){ for(var n=1;n<=PER_TEAM;n++) ORDER.push(t.code+n); });
+  for(var s=0;s<SPECIAL.count;s++) ORDER.push('FCW'+s);
+  var TOTAL = ORDER.length; // 980
+
+  // Echtes Flaggen-Bild (flagcdn.com); bei Fehler/offline -> Kürzel-Kästchen
+  function flagHTML(t){
+    return '<img class="flag-img" alt="'+t.name+'" width="36" height="25" '+
+      'src="https://flagcdn.com/w80/'+t.iso+'.png" '+
+      'srcset="https://flagcdn.com/w80/'+t.iso+'.png 1x, https://flagcdn.com/w160/'+t.iso+'.png 2x" '+
+      'onerror="this.outerHTML=&quot;<span class=\\&quot;fl-fallback\\&quot;>'+t.code+'</span>&quot;">';
+  }
+
+  // Label für eine ID (FCW mit führender Null anzeigen)
+  function labelFor(id){
+    if(id.indexOf('FCW')===0){
+      var num = id.slice(3);
+      return 'FCW '+(num.length<2?('0'+num):num);
+    }
+    var m = id.match(/^([A-Z]+)(\d+)$/);
+    return m ? (m[1]+' '+m[2]) : id;
+  }
+
+  /* ---------- Zustand ---------- */
+  var STORAGE_KEY = 'selfpanini_v1';
+  var state = load();          // { id: anzahl }
+  var nick = localStorage.getItem('selfpanini_nick') || '';
+
+  function load(){
+    try{ var raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : {}; }
+    catch(e){ return {}; }
+  }
+  function save(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
+  function countOf(id){ return state[id]|0; }
+  function setCount(id,v){ if(v<=0){ delete state[id]; } else { state[id]=Math.min(v,9); } save(); }
+
+  /* ---------- Rendering ---------- */
+  var teamsEl = document.getElementById('teams');
+  var jumpEl  = document.getElementById('jump');
+
+  function makeTeamCard(t){
+    var card = document.createElement('section');
+    card.className='team'; card.id='team-'+t.code;
+    var head = document.createElement('div'); head.className='team-head';
+    head.innerHTML =
+      flagHTML(t)+
+      '<span class="nm"><b>'+t.name+'</b><span>'+t.code+' 1–20</span></span>'+
+      '<span class="done-badge">Komplett</span>'+
+      '<span class="cnt" data-cnt="'+t.code+'">0/'+PER_TEAM+'</span>';
+    card.appendChild(head);
+    var body = document.createElement('div'); body.className='team-body';
+    for(var n=1;n<=PER_TEAM;n++){ body.appendChild(makeCell(t.code+n, String(n))); }
+    card.appendChild(body);
+    return card;
+  }
+
+  function makeSpecialCard(){
+    var card = document.createElement('section');
+    card.className='team'; card.id='team-FCW';
+    var head=document.createElement('div'); head.className='team-head special';
+    head.innerHTML =
+      '<span class="fl-fallback">✦</span>'+
+      '<span class="nm"><b>Glitzer-Sticker</b><span>FCW 00–19</span></span>'+
+      '<span class="special-tag">Special</span>'+
+      '<span class="done-badge">Komplett</span>'+
+      '<span class="cnt" data-cnt="FCW">0/'+SPECIAL.count+'</span>';
+    card.appendChild(head);
+    var body=document.createElement('div'); body.className='team-body';
+    for(var s=0;s<SPECIAL.count;s++){ body.appendChild(makeCell('FCW'+s, (s<10?('0'+s):String(s)))); }
+    card.appendChild(body);
+    return card;
+  }
+
+  function idTeam(id){ return id.indexOf('FCW')===0 ? 'FCW' : id.match(/^[A-Z]+/)[0]; }
+  function bump(id,delta){ setCount(id, countOf(id)+delta); }
+
+  // kleine, stabile Schräglage je Sticker
+  function tiltFor(id){
+    var h=0; for(var i=0;i<id.length;i++){ h=(h*31+id.charCodeAt(i))>>>0; }
+    return (((h%9)-4)*0.6).toFixed(2)+'deg';
+  }
+
+  function makeCell(id, shortLabel){
+    var c=document.createElement('div');
+    c.className='cell'; c.dataset.id=id;
+    c.style.setProperty('--tilt', tiltFor(id));
+    c.setAttribute('role','button');
+    c.setAttribute('tabindex','0');
+    c.setAttribute('aria-label', labelFor(id));
+    c.innerHTML='<small>'+id.replace(/[0-9]+$/,'')+'</small>'+shortLabel+'<span class="badge hidden"></span>';
+    paintCell(c);
+    c.addEventListener('click', function(){
+      var wasEmpty = countOf(id)===0;
+      bump(id, +1); paintCell(c); refreshTeam(idTeam(id)); refreshProgress();
+      if(wasEmpty){ c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop'); }
+    });
+    c.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); c.click(); } });
+    c.addEventListener('contextmenu', function(e){ e.preventDefault(); bump(id,-1); paintCell(c); refreshTeam(idTeam(id)); refreshProgress(); });
+    var lpTimer=null, longFired=false;
+    c.addEventListener('touchstart', function(){ longFired=false; lpTimer=setTimeout(function(){ longFired=true; bump(id,-1); paintCell(c); refreshTeam(idTeam(id)); refreshProgress(); if(navigator.vibrate)navigator.vibrate(15); }, 480); }, {passive:true});
+    c.addEventListener('touchend', function(e){ if(lpTimer)clearTimeout(lpTimer); if(longFired){ e.preventDefault(); } }, {passive:false});
+    c.addEventListener('touchmove', function(){ if(lpTimer)clearTimeout(lpTimer); });
+    return c;
+  }
+
+  function paintCell(c){
+    var id=c.dataset.id, v=countOf(id);
+    var badge=c.querySelector('.badge');
+    c.classList.remove('have','dup');
+    if(v<=0){ badge.classList.add('hidden'); return; }
+    if(v===1){ c.classList.add('have'); badge.classList.add('hidden'); }
+    else { c.classList.add('dup'); badge.classList.remove('hidden'); badge.textContent='×'+(v-1); }
+  }
+
+  function refreshTeam(code){
+    var el=document.querySelector('[data-cnt="'+code+'"]');
+    if(!el)return;
+    var max = code==='FCW'?SPECIAL.count:PER_TEAM;
+    var have=0;
+    if(code==='FCW'){ for(var s=0;s<SPECIAL.count;s++) if(countOf('FCW'+s)>0) have++; }
+    else { for(var n=1;n<=PER_TEAM;n++) if(countOf(code+n)>0) have++; }
+    el.textContent=have+'/'+max;
+    var card=el.closest('.team');
+    if(card) card.classList.toggle('done', have===max);
+  }
+
+  var C = 2*Math.PI*22;
+  function refreshProgress(){
+    var have=0, dup=0;
+    ORDER.forEach(function(id){ var v=countOf(id); if(v>0)have++; if(v>1)dup+=(v-1); });
+    document.getElementById('haveCount').textContent=have;
+    var pct = Math.round(have/TOTAL*100);
+    document.getElementById('pct').textContent=pct+' %';
+    document.getElementById('trackFill').style.width=pct+'%';
+    document.getElementById('ringFill').style.strokeDashoffset = (C*(1-have/TOTAL)).toFixed(1);
+    var dl=document.getElementById('dupLine');
+    if(have===TOTAL){ dl.textContent='Album komplett – Glückwunsch!'; }
+    else { dl.textContent = dup>0 ? (dup+' Sticker doppelt – super zum Tauschen!') : 'Noch keine doppelten Sticker'; }
+  }
+
+  function buildAll(){
+    var frag=document.createDocumentFragment();
+    TEAMS.forEach(function(t){ frag.appendChild(makeTeamCard(t)); });
+    frag.appendChild(makeSpecialCard());
+    teamsEl.appendChild(frag);
+    // Sprungnavigation: alle Teams (Kürzel) + Glitzer
+    TEAMS.forEach(function(t){
+      var b=document.createElement('button'); b.textContent=t.code;
+      b.onclick=function(){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); };
+      jumpEl.appendChild(b);
+    });
+    var bs=document.createElement('button'); bs.textContent='FCW';
+    bs.onclick=function(){ document.getElementById('team-FCW').scrollIntoView({behavior:'smooth'}); };
+    jumpEl.appendChild(bs);
+    TEAMS.forEach(function(t){ refreshTeam(t.code); });
+    refreshTeam('FCW');
+    refreshProgress();
+  }
+
+  /* ---------- Suche ---------- */
+  document.getElementById('search').addEventListener('input', function(e){
+    var q=e.target.value.trim().toLowerCase();
+    if(!q) return;
+    var t=TEAMS.filter(function(x){return x.name.toLowerCase().indexOf(q)===0 || x.code.toLowerCase()===q;})[0];
+    if(t){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); return; }
+    var m=q.replace(/\s+/g,'').match(/^([a-z]+)(\d+)$/);
+    if(m){
+      var code=m[1].toUpperCase();
+      var cell=document.querySelector('.cell[data-id="'+code+m[2]+'"]');
+      if(cell){ cell.scrollIntoView({behavior:'smooth',block:'center'});
+        cell.animate([{boxShadow:'0 0 0 0 rgba(51,167,140,.8)'},{boxShadow:'0 0 0 10px rgba(51,167,140,0)'}],{duration:700}); }
+    }
+  });
+
+  /* ---------- Listen (fehlt / doppelt) ---------- */
+  function missingList(){ var out=[]; ORDER.forEach(function(id){ if(countOf(id)===0) out.push(labelFor(id)); }); return out; }
+  function dupList(){ var out=[]; ORDER.forEach(function(id){ var v=countOf(id); if(v>1){ var n=v-1; out.push(labelFor(id)+(n>1?(' ('+n+'×)'):'')); } }); return out; }
+  function listText(){
+    var miss=missingList(), dup=dupList();
+    var name = nick ? (nick+' – ') : '';
+    var s = name+'WM 2026 Sammelalbum\n';
+    s += '\nMir fehlen ('+miss.length+'):\n' + (miss.length?miss.join(', '):'– nichts, komplett!');
+    s += '\n\nIch hab doppelt ('+dup.length+'):\n' + (dup.length?dup.join(', '):'– keine');
+    return s;
+  }
+
+  /* ---------- Tausch-Link Kodierung ---------- */
+  function encodeState(){ var s=''; ORDER.forEach(function(id){ s += String(Math.min(countOf(id),9)); }); return s; }
+  function decodeState(str){
+    var map={};
+    if(!str || str.length!==TOTAL) return null;
+    for(var i=0;i<TOTAL;i++){ var v=parseInt(str[i],10)||0; if(v>0) map[ORDER[i]]=v; }
+    return map;
+  }
+  function buildTradeLink(){
+    var base = location.href.split('#')[0];
+    var p = 't='+encodeState();
+    if(nick) p += '&n='+encodeURIComponent(nick);
+    return base+'#'+p;
+  }
+
+  /* ---------- Tausch-Ansicht ---------- */
+  function openTradeFromHash(){
+    var h=location.hash.slice(1); if(!h) return;
+    var params={}; h.split('&').forEach(function(kv){ var p=kv.split('='); params[p[0]]=p[1]; });
+    if(!params.t) return;
+    var friend=decodeState(decodeURIComponent(params.t));
+    if(!friend){ return; }
+    var fname = params.n ? decodeURIComponent(params.n) : 'Dein Freund';
+    var iHaveAny = Object.keys(state).length>0;
+    var youGet=[], youGive=[];
+    ORDER.forEach(function(id){
+      var mine=countOf(id), fr=friend[id]||0;
+      if(fr>1 && mine===0) youGet.push(labelFor(id));
+      if(mine>1 && fr===0) youGive.push(labelFor(id));
+    });
+    var frMiss=[], frDup=[];
+    ORDER.forEach(function(id){ var v=friend[id]||0; if(v===0)frMiss.push(labelFor(id)); if(v>1)frDup.push(labelFor(id)); });
+
+    document.getElementById('tradeTitle').textContent = fname+' – Tausch';
+    var body=document.getElementById('tradeBody'); body.innerHTML='';
+    if(iHaveAny){
+      document.getElementById('tradeLead').textContent='Vergleich mit deiner Sammlung:';
+      body.appendChild(matchBlock('get','Das kannst DU von '+fname+' bekommen', youGet, fname+' hat diese doppelt und dir fehlen sie.'));
+      body.appendChild(matchBlock('give','Das kann '+fname+' von DIR bekommen', youGive, 'Du hast diese doppelt und '+fname+' fehlen sie.'));
+    } else {
+      document.getElementById('tradeLead').textContent='So sieht die Sammlung von '+fname+' aus. Trage erst deine eigenen Sticker ein, dann siehst du den direkten Tausch!';
+      body.appendChild(matchBlock('give',fname+' hat doppelt', frDup, 'Diese Sticker könntest du bekommen.'));
+      body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss.slice(0,60), frMiss.length+' Sticker fehlen'+(frMiss.length>60?' (erste 60)':'')+'.'));
+    }
+    openModal('tradeModal');
+  }
+  function matchBlock(kind,title,arr,hint){
+    var d=document.createElement('div'); d.className='match';
+    d.innerHTML='<div class="mh '+kind+'">'+title+' ('+arr.length+')</div>'+
+      '<div class="mb">'+(arr.length? arr.join(', ') : '<span class="muted">'+hint+' – hier gerade nichts.</span>')+
+      (arr.length?('<br><span class="muted">'+hint+'</span>'):'')+'</div>';
+    return d;
+  }
+
+  /* ---------- Modals ---------- */
+  function openModal(id){ document.getElementById(id).classList.add('open'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+  document.querySelectorAll('.overlay').forEach(function(o){
+    o.addEventListener('click', function(e){ if(e.target===o) o.classList.remove('open'); });
+  });
+
+  document.getElementById('btnShare').onclick=function(){
+    document.getElementById('nick').value=nick;
+    document.getElementById('listPreview').textContent=listText();
+    openModal('shareModal');
+  };
+  document.getElementById('btnCloseShare').onclick=function(){ closeModal('shareModal'); };
+  document.getElementById('btnMenu').onclick=function(){ openModal('menuModal'); };
+  document.getElementById('btnCloseMenu').onclick=function(){ closeModal('menuModal'); };
+  document.getElementById('btnCloseTrade').onclick=function(){ closeModal('tradeModal'); location.hash=''; };
+
+  document.getElementById('nick').addEventListener('input', function(e){
+    nick=e.target.value.trim(); localStorage.setItem('selfpanini_nick', nick);
+    document.getElementById('listPreview').textContent=listText();
+  });
+
+  document.getElementById('btnCopyList').onclick=function(){ copy(listText(), 'Listen kopiert!'); };
+  document.getElementById('btnWhats').onclick=function(){ window.open('https://wa.me/?text='+encodeURIComponent(listText()), '_blank'); };
+  document.getElementById('btnTradeLink').onclick=function(){
+    var link=buildTradeLink();
+    if(navigator.share){ navigator.share({title:'Mein WM 2026 Album', text:'Lass uns Sticker tauschen!', url:link}).catch(function(){ copy(link,'Tausch-Link kopiert!'); }); }
+    else { copy(link,'Tausch-Link kopiert!'); }
+  };
+
+  /* ---------- Backup ---------- */
+  document.getElementById('btnExport').onclick=function(){
+    var data=JSON.stringify({v:1, nick:nick, state:state});
+    var blob=new Blob([data], {type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='wm2026-album-backup.json'; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    toast('Backup gespeichert');
+  };
+  document.getElementById('btnImport').onclick=function(){ document.getElementById('fileImport').click(); };
+  document.getElementById('fileImport').addEventListener('change', function(e){
+    var f=e.target.files[0]; if(!f)return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{
+        var obj=JSON.parse(r.result);
+        if(obj && obj.state){ state=obj.state; if(obj.nick){ nick=obj.nick; localStorage.setItem('selfpanini_nick',nick); }
+          save(); rerenderAll(); toast('Backup geladen'); closeModal('menuModal'); }
+        else toast('Datei nicht erkannt');
+      }catch(err){ toast('Fehler beim Laden'); }
+    };
+    r.readAsText(f); e.target.value='';
+  });
+  document.getElementById('btnReset').onclick=function(){
+    if(confirm('Wirklich ALLE Sticker zurücksetzen? Das kann nicht rückgängig gemacht werden.')){
+      state={}; save(); rerenderAll(); toast('Alles zurückgesetzt'); closeModal('menuModal');
+    }
+  };
+
+  function rerenderAll(){
+    document.querySelectorAll('.cell').forEach(paintCell);
+    TEAMS.forEach(function(t){ refreshTeam(t.code); }); refreshTeam('FCW');
+    refreshProgress();
+  }
+
+  /* ---------- Helfer ---------- */
+  function copy(text,msg){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ toast(msg); }, function(){ fallbackCopy(text,msg); });
+    } else fallbackCopy(text,msg);
+  }
+  function fallbackCopy(text,msg){
+    var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); toast(msg); }catch(e){ toast('Bitte manuell kopieren'); }
+    document.body.removeChild(ta);
+  }
+  var toastTimer=null;
+  function toast(msg){
+    var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+    if(toastTimer)clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){ t.classList.remove('show'); }, 1900);
+  }
+
+  /* ---------- Start ---------- */
+  buildAll();
+  if(location.hash.indexOf('t=')>=0){ setTimeout(openTradeFromHash, 250); }
+
+})();
+</script>
+</body>
+</html>
