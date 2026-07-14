@@ -197,6 +197,9 @@
   .field input:focus{outline:none;border-color:var(--self-teal);box-shadow:0 0 0 3px rgba(51,167,140,.18)}
   .section-title{font-size:.66rem;text-transform:uppercase;letter-spacing:.16em;color:var(--self-text-3);
     font-weight:600;margin:18px 0 6px;font-family:var(--self-font-mono)}
+  .synccode{font-family:var(--self-font-mono);font-size:1.35rem;font-weight:600;letter-spacing:.1em;
+    color:var(--self-teal-bright);background:var(--self-bg-2);border:1px solid var(--self-line-strong);
+    border-radius:var(--self-radius-sm);padding:13px 14px;text-align:center;margin:0 0 10px;user-select:all}
   .match{border:1px solid var(--self-line);border-radius:var(--self-radius);overflow:hidden;margin:8px 0}
   .match .mh{padding:10px 12px;font-weight:700;font-size:.9rem}
   .match .mh.get{background:rgba(63,185,80,.14);color:var(--self-green);border-bottom:1px solid var(--self-line)}
@@ -332,6 +335,31 @@
       <button class="btn btn-ghost" id="btnImport">Backup laden</button>
     </div>
     <input type="file" id="fileImport" accept="application/json" class="hidden" />
+
+    <div class="section-title">Cloud-Sync (Geräte abgleichen)</div>
+    <p class="lead" id="syncStatus" style="margin:0 0 10px">Nicht verbunden – nur auf diesem Gerät gespeichert.</p>
+    <div id="syncConnected" class="hidden">
+      <div class="synccode" id="syncCodeBox">–</div>
+      <p class="lead" style="margin:-2px 0 10px">Gib diesen Code auf deinen anderen Geräten ein – dann gleicht sich alles automatisch ab.</p>
+      <div class="row-btns">
+        <button class="btn btn-ghost" id="btnSyncCopy">Code kopieren</button>
+        <button class="btn btn-ghost" id="btnSyncNow">Jetzt abgleichen</button>
+        <button class="btn btn-ghost" id="btnSyncOff" style="color:var(--self-red);border-color:rgba(248,81,73,.4)">Trennen</button>
+      </div>
+    </div>
+    <div id="syncDisconnected">
+      <div class="row-btns">
+        <button class="btn btn-primary" id="btnSyncNew">Sync-Code erstellen</button>
+      </div>
+      <div class="field" style="margin-top:10px">
+        <label for="syncInput">Oder mit vorhandenem Code verbinden</label>
+        <input id="syncInput" type="text" inputmode="text" autocapitalize="characters" placeholder="z. B. PANINI-7F3KQ2" />
+      </div>
+      <div class="row-btns">
+        <button class="btn btn-ghost" id="btnSyncConnect" style="flex:1">Verbinden</button>
+      </div>
+    </div>
+
     <div class="section-title">Zurücksetzen</div>
     <div class="row-btns">
       <button class="btn btn-ghost" id="btnReset" style="color:var(--self-red);border-color:rgba(248,81,73,.4)">Alles zurücksetzen</button>
@@ -444,13 +472,95 @@
   var state = load();          // { id: anzahl }
   var nick = localStorage.getItem('selfpanini_nick') || '';
 
+  /* ---------- Cloud-Sync (Worker + KV, Code-basiert) ---------- */
+  var WORKER='https://selfpanini-sync.s3lfcod3r.workers.dev';
+  var syncCode = localStorage.getItem('selfpanini_sync') || '';
+  var localUpdatedAt = parseInt(localStorage.getItem('selfpanini_updated')||'0',10);
+  var pushTimer=null, pollTimer=null;
+
+  function markLocalChanged(){
+    localUpdatedAt=Date.now();
+    localStorage.setItem('selfpanini_updated', String(localUpdatedAt));
+    schedulePush();
+  }
+  function schedulePush(){
+    if(!syncCode) return;
+    if(pushTimer) clearTimeout(pushTimer);
+    pushTimer=setTimeout(cloudPush, 1400);
+  }
+  function cloudPush(){
+    if(!syncCode) return;
+    var payload=JSON.stringify({v:1, nick:nick, state:state, updatedAt:localUpdatedAt||Date.now()});
+    fetch(WORKER+'/a/'+encodeURIComponent(syncCode), {method:'PUT', headers:{'Content-Type':'application/json'}, body:payload}).catch(function(){});
+  }
+  function cloudPull(showToast){
+    if(!syncCode) return;
+    fetch(WORKER+'/a/'+encodeURIComponent(syncCode)).then(function(r){return r.json();}).then(function(d){
+      if(d && !d.empty && d.state && (d.updatedAt||0) > localUpdatedAt){
+        state=d.state;
+        if(d.nick){ nick=d.nick; localStorage.setItem('selfpanini_nick',nick); }
+        localUpdatedAt=d.updatedAt; localStorage.setItem('selfpanini_updated',String(localUpdatedAt));
+        save(); rerenderAll();
+        if(showToast) toast('Von der Cloud aktualisiert');
+      } else if(showToast){ toast('Alles aktuell'); }
+    }).catch(function(){ if(showToast) toast('Cloud nicht erreichbar'); });
+  }
+  function genCode(){
+    var A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s='';
+    for(var i=0;i<6;i++) s+=A[Math.floor(Math.random()*A.length)];
+    return 'PANINI-'+s;
+  }
+  function mergeMax(a,b){ var out={},k; for(k in a) out[k]=a[k]; for(k in b){ out[k]=Math.max(out[k]||0, b[k]); } return out; }
+  function createCode(){
+    syncCode=genCode(); localStorage.setItem('selfpanini_sync', syncCode);
+    localUpdatedAt=Date.now(); localStorage.setItem('selfpanini_updated', String(localUpdatedAt));
+    renderSyncUI(); cloudPush(); startPoll(); toast('Sync-Code erstellt');
+  }
+  function connectCode(code){
+    code=(code||'').trim().toUpperCase();
+    if(!/^[A-Z0-9-]{4,40}$/.test(code)){ toast('Ungültiger Code'); return; }
+    fetch(WORKER+'/a/'+encodeURIComponent(code)).then(function(r){return r.json();}).then(function(d){
+      var haveLocal = Object.keys(state).length>0;
+      if(d && !d.empty && d.state){
+        state = haveLocal ? mergeMax(state, d.state) : d.state;
+        if(d.nick && !nick){ nick=d.nick; localStorage.setItem('selfpanini_nick',nick); }
+      }
+      syncCode=code; localStorage.setItem('selfpanini_sync', syncCode);
+      localUpdatedAt=Date.now(); localStorage.setItem('selfpanini_updated', String(localUpdatedAt));
+      save(); rerenderAll(); renderSyncUI(); cloudPush(); startPoll();
+      toast('Verbunden: '+code);
+    }).catch(function(){ toast('Cloud nicht erreichbar'); });
+  }
+  function disconnectSync(){
+    syncCode=''; localStorage.removeItem('selfpanini_sync'); stopPoll(); renderSyncUI(); toast('Verbindung getrennt');
+  }
+  function startPoll(){ stopPoll(); if(!syncCode) return; pollTimer=setInterval(function(){ if(document.visibilityState==='visible') cloudPull(false); }, 20000); }
+  function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+  function renderSyncUI(){
+    var conn=document.getElementById('syncConnected');
+    var disc=document.getElementById('syncDisconnected');
+    var status=document.getElementById('syncStatus');
+    var hint=document.getElementById('autosaveHint');
+    if(!conn) return;
+    if(syncCode){
+      conn.classList.remove('hidden'); disc.classList.add('hidden');
+      document.getElementById('syncCodeBox').textContent=syncCode;
+      status.textContent='Verbunden – gleicht sich automatisch zwischen deinen Geräten ab.';
+      if(hint) hint.textContent='Automatisch gespeichert & mit deinen Geräten abgeglichen ('+syncCode+').';
+    } else {
+      conn.classList.add('hidden'); disc.classList.remove('hidden');
+      status.textContent='Nicht verbunden – nur auf diesem Gerät gespeichert.';
+      if(hint) hint.textContent='Automatisch auf diesem Gerät gespeichert.';
+    }
+  }
+
   function load(){
     try{ var raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : {}; }
     catch(e){ return {}; }
   }
   function save(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
   function countOf(id){ return state[id]|0; }
-  function setCount(id,v){ if(v<=0){ delete state[id]; } else { state[id]=Math.min(v,9); } save(); }
+  function setCount(id,v){ if(v<=0){ delete state[id]; } else { state[id]=Math.min(v,9); } save(); markLocalChanged(); }
 
   /* ---------- Rendering ---------- */
   var teamsEl = document.getElementById('teams');
@@ -669,12 +779,18 @@
     openModal('shareModal');
   };
   document.getElementById('btnCloseShare').onclick=function(){ closeModal('shareModal'); };
-  document.getElementById('btnMenu').onclick=function(){ openModal('menuModal'); };
+  document.getElementById('btnMenu').onclick=function(){ renderSyncUI(); openModal('menuModal'); };
   document.getElementById('btnCloseMenu').onclick=function(){ closeModal('menuModal'); };
+  document.getElementById('btnSyncNew').onclick=createCode;
+  document.getElementById('btnSyncConnect').onclick=function(){ connectCode(document.getElementById('syncInput').value); };
+  document.getElementById('btnSyncCopy').onclick=function(){ copy(syncCode,'Code kopiert!'); };
+  document.getElementById('btnSyncNow').onclick=function(){ cloudPull(true); };
+  document.getElementById('btnSyncOff').onclick=disconnectSync;
   document.getElementById('btnCloseTrade').onclick=function(){ closeModal('tradeModal'); location.hash=''; };
 
   document.getElementById('nick').addEventListener('input', function(e){
     nick=e.target.value.trim(); localStorage.setItem('selfpanini_nick', nick);
+    markLocalChanged();
     document.getElementById('listPreview').textContent=listText();
   });
 
@@ -687,16 +803,39 @@
   };
 
   /* ---------- Backup ---------- */
-  function downloadBackup(){
-    var data=JSON.stringify({v:1, nick:nick, state:state});
-    var blob=new Blob([data], {type:'application/json'});
+  var saveHandle=null; // gemerkte Datei (File System Access API)
+  function backupData(){ return JSON.stringify({v:1, nick:nick, state:state}); }
+  function fallbackDownload(){
+    var d=new Date();
+    var stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var blob=new Blob([backupData()], {type:'application/json'});
     var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='wm2026-album-backup.json'; a.click();
+    a.download='wm2026-album-'+stamp+'.json'; a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
     toast('Als Datei gespeichert');
   }
-  document.getElementById('btnSave').onclick=downloadBackup;
-  document.getElementById('btnExport').onclick=function(){ downloadBackup(); };
+  async function saveBackup(){
+    if(window.showSaveFilePicker){
+      try{
+        if(!saveHandle){
+          saveHandle=await window.showSaveFilePicker({
+            suggestedName:'wm2026-album-backup.json',
+            types:[{description:'SelfPanini Sicherung', accept:{'application/json':['.json']}}]
+          });
+        }
+        var w=await saveHandle.createWritable();
+        await w.write(backupData()); await w.close();
+        toast('Gespeichert (dieselbe Datei)');
+        return;
+      }catch(e){
+        if(e && e.name==='AbortError') return; // abgebrochen
+        saveHandle=null; // z.B. Recht entzogen -> Fallback
+      }
+    }
+    fallbackDownload();
+  }
+  document.getElementById('btnSave').onclick=saveBackup;
+  document.getElementById('btnExport').onclick=saveBackup;
   document.getElementById('btnImport').onclick=function(){ document.getElementById('fileImport').click(); };
   document.getElementById('fileImport').addEventListener('change', function(e){
     var f=e.target.files[0]; if(!f)return;
@@ -705,7 +844,7 @@
       try{
         var obj=JSON.parse(r.result);
         if(obj && obj.state){ state=obj.state; if(obj.nick){ nick=obj.nick; localStorage.setItem('selfpanini_nick',nick); }
-          save(); rerenderAll(); toast('Backup geladen'); closeModal('menuModal'); }
+          save(); markLocalChanged(); rerenderAll(); toast('Backup geladen'); closeModal('menuModal'); }
         else toast('Datei nicht erkannt');
       }catch(err){ toast('Fehler beim Laden'); }
     };
@@ -713,7 +852,7 @@
   });
   document.getElementById('btnReset').onclick=function(){
     if(confirm('Wirklich ALLE Sticker zurücksetzen? Das kann nicht rückgängig gemacht werden.')){
-      state={}; save(); rerenderAll(); toast('Alles zurückgesetzt'); closeModal('menuModal');
+      state={}; save(); markLocalChanged(); rerenderAll(); toast('Alles zurückgesetzt'); closeModal('menuModal');
     }
   };
 
@@ -744,6 +883,9 @@
 
   /* ---------- Start ---------- */
   buildAll();
+  renderSyncUI();
+  if(syncCode){ cloudPull(false); startPoll(); }
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && syncCode) cloudPull(false); });
   if(location.hash.indexOf('t=')>=0){ setTimeout(openTradeFromHash, 250); }
 
 })();
