@@ -212,6 +212,8 @@
     pointer-events:none;transition:.25s var(--self-ease);z-index:80;font-size:.9rem}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   footer{text-align:center;color:var(--self-text-3);font-size:.78rem;margin-top:28px;line-height:1.7}
+  footer a{color:var(--self-teal-bright);text-decoration:none}
+  footer a:hover{text-decoration:underline}
   .hidden{display:none!important}
   @media (prefers-reduced-motion:reduce){
     *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
@@ -287,8 +289,8 @@
   <div id="teams"></div>
 
   <footer>
-    SelfPanini · Alles wird nur auf deinem Gerät gespeichert – kein Konto, keine Anmeldung.<br>
-    Inoffizieller Sammelhelfer, nicht mit Panini verbunden.
+    SelfPanini · Ohne Konto und Anmeldung. Cloud-Sync ist freiwillig.<br>
+    <a href="hilfe.html">Hilfe &amp; Datenschutz</a> · Inoffizieller Sammelhelfer, nicht mit Panini verbunden.
   </footer>
 </div>
 
@@ -300,8 +302,9 @@
     <p class="lead">Verschicke deine Listen oder einen Tausch-Link an Freunde.</p>
 
     <div class="field">
-      <label for="nick">Dein Name (für Freunde sichtbar)</label>
+      <label for="nick">Dein Spitzname (für Freunde sichtbar)</label>
       <input id="nick" type="text" maxlength="20" placeholder="z. B. Tom" />
+      <p class="lead" style="margin:6px 0 0">Tipp: Nimm einen Spitznamen – keinen echten voll­ständigen Namen.</p>
     </div>
 
     <div class="section-title">Meine Listen</div>
@@ -340,11 +343,15 @@
     <p class="lead" id="syncStatus" style="margin:0 0 10px">Nicht verbunden – nur auf diesem Gerät gespeichert.</p>
     <div id="syncConnected" class="hidden">
       <div class="synccode" id="syncCodeBox">–</div>
-      <p class="lead" style="margin:-2px 0 10px">Gib diesen Code auf deinen anderen Geräten ein – dann gleicht sich alles automatisch ab.</p>
+      <p class="lead" style="margin:-2px 0 8px">Gib diesen Code auf deinen anderen Geräten ein – dann gleicht sich alles automatisch ab.</p>
+      <p class="lead" style="margin:0 0 10px;color:var(--self-yellow)">Der Code ist kein Passwort: Wer ihn kennt, sieht dein Album. Nur mit deinen Geräten oder Tausch-Freunden teilen.</p>
       <div class="row-btns">
         <button class="btn btn-ghost" id="btnSyncCopy">Code kopieren</button>
         <button class="btn btn-ghost" id="btnSyncNow">Jetzt abgleichen</button>
-        <button class="btn btn-ghost" id="btnSyncOff" style="color:var(--self-red);border-color:rgba(248,81,73,.4)">Trennen</button>
+        <button class="btn btn-ghost" id="btnSyncOff">Trennen</button>
+      </div>
+      <div class="row-btns">
+        <button class="btn btn-ghost" id="btnSyncDelete" style="flex:1;color:var(--self-red);border-color:rgba(248,81,73,.4)">Sammlung aus Cloud löschen</button>
       </div>
     </div>
     <div id="syncDisconnected">
@@ -533,6 +540,14 @@
   }
   function disconnectSync(){
     syncCode=''; localStorage.removeItem('selfpanini_sync'); stopPoll(); renderSyncUI(); toast('Verbindung getrennt');
+  }
+  function cloudDelete(){
+    if(!syncCode) return;
+    if(!confirm('Die Sammlung dieses Codes aus der Cloud löschen?\n\nDeine Sticker auf DIESEM Gerät bleiben erhalten. Andere Geräte behalten ihren Stand, bis sie neu verbinden.')) return;
+    // leeren Stand mit updatedAt:0 -> Cloud-Kopie leer, überschreibt aber keine anderen Geräte
+    fetch(WORKER+'/a/'+encodeURIComponent(syncCode), {method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({v:1,nick:'',state:{},updatedAt:0})}).then(function(){ toast('Aus der Cloud gelöscht'); }).catch(function(){ toast('Cloud nicht erreichbar'); });
+    syncCode=''; localStorage.removeItem('selfpanini_sync'); stopPoll(); renderSyncUI();
   }
   function startPoll(){ stopPoll(); if(!syncCode) return; pollTimer=setInterval(function(){ if(document.visibilityState==='visible') cloudPull(false); }, 20000); }
   function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
@@ -786,6 +801,7 @@
   document.getElementById('btnSyncCopy').onclick=function(){ copy(syncCode,'Code kopiert!'); };
   document.getElementById('btnSyncNow').onclick=function(){ cloudPull(true); };
   document.getElementById('btnSyncOff').onclick=disconnectSync;
+  document.getElementById('btnSyncDelete').onclick=cloudDelete;
   document.getElementById('btnCloseTrade').onclick=function(){ closeModal('tradeModal'); location.hash=''; };
 
   document.getElementById('nick').addEventListener('input', function(e){

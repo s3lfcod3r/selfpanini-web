@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SelfPanini · Hilfe &amp; Datenschutz</title>
+<meta name="description" content="Wie SelfPanini funktioniert, was gespeichert wird und was nicht – einfach erklärt." />
+<meta name="theme-color" content="#080c11" />
+<link rel="icon" href="assets/shield.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  @font-face{font-family:"Orbitron";src:url("assets/fonts/Orbitron.ttf") format("truetype");font-weight:400 900;font-style:normal;font-display:swap}
+  :root{
+    --bg0:#080c11; --bg1:#0d1117; --bg2:#161b22; --bg3:#1c2333;
+    --line:rgba(157,189,208,.10); --line2:rgba(157,189,208,.22);
+    --teal:#33a78c; --teal-b:#43d3ad; --cyan:#00e5c8; --ice:#9dbdd0; --ice-b:#bcd9e9;
+    --green:#3fb950; --red:#f85149; --yellow:#d29922;
+    --text:#eef4f7; --t2:#8a9caa; --t3:#556673;
+    --sans:"Exo 2",system-ui,sans-serif; --mono:"IBM Plex Mono",monospace; --wm:"Orbitron",var(--sans);
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(700px 360px at 85% -140px, rgba(51,167,140,.14) 0%, transparent 60%),var(--bg0);
+    color:var(--text);font-family:var(--sans);line-height:1.65;padding:0 0 60px;-webkit-text-size-adjust:100%}
+  .wrap{max-width:720px;margin:0 auto;padding:0 16px}
+  header{text-align:center;padding:26px 0 18px;border-bottom:1px solid var(--line)}
+  header img{height:52px;width:auto;display:block;margin:0 auto 10px;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))}
+  .wm{font-family:var(--wm);font-weight:800;font-size:1.5rem;letter-spacing:.5px}
+  .wm .s{color:var(--ice-b)} .wm .p{color:var(--teal-b)}
+  header .pg{margin:8px 0 0;color:var(--t2);font-size:.9rem}
+  a{color:var(--teal-b)}
+  h2{font-size:1.15rem;margin:30px 0 8px;font-weight:700}
+  h2 .n{font-family:var(--mono);color:var(--teal);font-size:.9rem;margin-right:8px}
+  p{margin:0 0 12px;color:#dfe7ec}
+  .muted{color:var(--t2)}
+  ul{margin:0 0 12px;padding-left:20px} li{margin:5px 0;color:#dfe7ec}
+  code,.mono{font-family:var(--mono);font-size:.9em;background:var(--bg2);padding:2px 6px;border-radius:5px;color:var(--teal-b)}
+  .back{display:inline-block;margin:18px 0 0;font-family:var(--mono);font-size:.85rem}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 4px}
+  @media(max-width:560px){.cards{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;background:var(--bg2)}
+  .card h3{margin:0 0 8px;font-size:.95rem;display:flex;align-items:center;gap:8px}
+  .card.ok h3{color:var(--green)} .card.no h3{color:var(--red)}
+  .card ul{margin:0;padding-left:18px} .card li{font-size:.92rem}
+  .note{border-left:3px solid var(--yellow);background:rgba(210,153,34,.08);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+  .note b{color:var(--yellow)}
+  .foot{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);color:var(--t3);font-size:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <img src="assets/shield.png" alt="SelfPanini" />
+    <div class="wm"><span class="s">Self</span><span class="p">Panini</span></div>
+    <p class="pg">Hilfe &amp; Datenschutz – einfach erklärt</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <p class="muted" style="margin-top:18px">SelfPanini ist ein kostenloser Helfer, um dein WM-2026-Sammelalbum zu verwalten: Sticker abhaken, Fehlende und Doppelte im Blick behalten und mit Freunden tauschen. Kein Konto, keine Anmeldung, keine Werbung.</p>
+
+  <h2><span class="n">01</span>So funktioniert's</h2>
+  <ul>
+    <li><b>Antippen</b> = hab ich (grün). <b>Nochmal antippen</b> = doppelt (gelb). <b>Lange drücken</b> = einen zurück.</li>
+    <li><b>Teilen:</b> Deine Listen „fehlt / doppelt" per WhatsApp verschicken oder einen <b>Tausch-Link</b> erstellen – der Freund sieht sofort, was ihr tauschen könnt.</li>
+    <li><b>Speichern:</b> Alles wird automatisch gespeichert. Mit dem Speichern-Knopf kannst du zusätzlich eine Sicherungsdatei ablegen.</li>
+  </ul>
+
+  <h2><span class="n">02</span>Wo wird gespeichert?</h2>
+  <p><b>Ohne Cloud-Sync</b> (Standard): Alles bleibt <b>nur auf deinem Gerät</b>, im Speicher deines Browsers. Nichts verlässt dein Gerät. Ein anderes Gerät weiß davon nichts.</p>
+  <p><b>Mit Cloud-Sync</b> (freiwillig, du schaltest es selbst ein): Damit dieselbe Sammlung auf Handy <i>und</i> PC erscheint, wird dein Album-Stand zusätzlich bei unserem Dienstleister <b>Cloudflare</b> gespeichert – abgelegt unter deinem <b>Sync-Code</b> (z. B. <span class="mono">PANINI-7F3KQ2</span>). Nur wer diesen Code hat, kommt an die Daten.</p>
+
+  <h2><span class="n">03</span>Was gespeichert wird – und was nicht</h2>
+  <div class="cards">
+    <div class="card ok">
+      <h3>Das wird gespeichert</h3>
+      <ul>
+        <li>Für jeden Sticker eine Zahl: 0 = fehlt, 1 = hab ich, 2+ = doppelt (z. B. <span class="mono">GER 4 = 2</span>)</li>
+        <li>Dein frei gewählter <b>Spitzname</b>, falls du einen eingibst</li>
+        <li>Dein <b>Sync-Code</b> (nur bei aktivierter Cloud-Sync)</li>
+      </ul>
+    </div>
+    <div class="card no">
+      <h3>Das wird NICHT gespeichert</h3>
+      <ul>
+        <li>Kein echter Name, keine Adresse, keine E-Mail, keine Telefonnummer</li>
+        <li>Kein Login, kein Passwort</li>
+        <li>Kein Standort, keine Kontakte, keine Fotos</li>
+        <li>Keine Werbe-Cookies, kein Tracking, keine Weitergabe oder Verkauf von Daten</li>
+      </ul>
+    </div>
+  </div>
+  <p class="muted">Kurz: Es werden nur Zahlen zu Stickern gespeichert – nichts, woran man erkennt, wer du bist. Bitte trage als Spitznamen <b>keinen echten vollständigen Namen</b> ein.</p>
+
+  <div class="note"><b>Wichtig:</b> Der Sync-Code ist <b>kein Passwort</b>. Wer den Code kennt, kann dein Album sehen und ändern. Teile ihn deshalb nur mit deinen eigenen Geräten oder mit Freunden, mit denen du bewusst gemeinsam sammelst.</div>
+
+  <h2><span class="n">04</span>Löschen &amp; Kontrolle</h2>
+  <ul>
+    <li><b>Auf dem Gerät löschen:</b> „Mehr → Alles zurücksetzen".</li>
+    <li><b>Aus der Cloud löschen:</b> „Mehr → Cloud-Sync → Sammlung aus Cloud löschen". Danach ist die Cloud-Kopie leer.</li>
+    <li><b>Cloud gar nicht nutzen:</b> Einfach keinen Sync-Code erstellen – dann ist nie etwas online.</li>
+  </ul>
+
+  <h2><span class="n">05</span>Für Eltern</h2>
+  <p>SelfPanini ist bewusst simpel und sicher gebaut: <b>kein Konto</b>, keine Registrierung, kein Chat mit Fremden, keine Werbung, keine In-App-Käufe. Kinder tauschen Codes nur mit Freunden, die sie kennen. Es werden keine persönlichen Daten abgefragt.</p>
+
+  <h2><span class="n">06</span>Rechtliche Hinweise (Datenschutz)</h2>
+  <p class="muted" style="font-size:.9rem">Diese Seite ist eine verständliche Zusammenfassung und keine Rechtsberatung.</p>
+  <ul>
+    <li><b>Zweck der Speicherung:</b> ausschließlich, damit die App funktioniert (Sammlung merken, Geräte-Abgleich, Tausch).</li>
+    <li><b>Dienstleister:</b> Die Seite wird über <b>GitHub Pages</b> ausgeliefert; die freiwillige Cloud-Sync läuft über <b>Cloudflare</b>. Wie bei jeder Webseite verarbeiten diese Anbieter technisch notwendige Verbindungsdaten (z. B. die IP-Adresse), um die Seite auszuliefern und Missbrauch zu verhindern. Darauf haben wir keinen Einfluss.</li>
+    <li><b>Keine Weitergabe:</b> Album-Daten werden nicht an Dritte verkauft oder für Werbung genutzt.</li>
+    <li><b>Deine Rechte:</b> Du kannst deine Daten jederzeit selbst löschen (siehe Punkt 04). Fragen zum Datenschutz: <a href="mailto:info@selfcoder.de">info@selfcoder.de</a>.</li>
+    <li><b>Anbieter/Impressum:</b> Privates, nicht-kommerzielles Hobbyprojekt. Kontakt: <a href="mailto:info@selfcoder.de">info@selfcoder.de</a>.</li>
+  </ul>
+
+  <p class="muted" style="font-size:.85rem">Inoffizieller Sammelhelfer – nicht mit Panini oder der FIFA verbunden. Flaggen: flagcdn.com.</p>
+
+  <a class="back" href="index.html">← Zurück zum Album</a>
+
+  <div class="foot">SelfPanini · panini.selfcoder.de</div>
+</main>
+</body>
+</html>
