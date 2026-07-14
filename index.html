@@ -101,8 +101,8 @@
   /* ---------- Team-Sprungnavigation ---------- */
   .jump{display:flex;gap:6px;overflow-x:auto;padding:12px 0 4px;-webkit-overflow-scrolling:touch}
   .jump button{flex:0 0 auto;border:1px solid var(--self-line-strong);background:var(--self-bg-2);
-    border-radius:99px;padding:7px 14px;font-size:.82rem;cursor:pointer;
-    font-family:var(--self-font-sans);font-weight:600;color:var(--self-text-2);letter-spacing:.2px;
+    border-radius:99px;padding:7px 13px;font-size:.78rem;cursor:pointer;
+    font-family:var(--self-font-mono);color:var(--self-text-2);letter-spacing:.5px;
     transition:all var(--self-dur-fast) var(--self-ease)}
   .jump button:hover{border-color:var(--self-teal);color:var(--self-text)}
 
@@ -690,13 +690,13 @@
     DISPLAY.forEach(function(t){ frag.appendChild(makeTeamCard(t)); });
     frag.appendChild(makeSpecialCard());
     teamsEl.appendChild(frag);
-    // Sprungnavigation: Ländernamen alphabetisch + Glitzer
+    // Sprungnavigation: Kürzel, in alphabetischer Länder-Reihenfolge (wie die Karten)
     DISPLAY.forEach(function(t){
-      var b=document.createElement('button'); b.textContent=t.name;
+      var b=document.createElement('button'); b.textContent=t.code; b.title=t.name;
       b.onclick=function(){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); };
       jumpEl.appendChild(b);
     });
-    var bs=document.createElement('button'); bs.textContent='Glitzer';
+    var bs=document.createElement('button'); bs.textContent='FCW'; bs.title='Glitzer-Sticker';
     bs.onclick=function(){ document.getElementById('team-FCW').scrollIntoView({behavior:'smooth'}); };
     jumpEl.appendChild(bs);
     TEAMS.forEach(function(t){ refreshTeam(t.code); });
