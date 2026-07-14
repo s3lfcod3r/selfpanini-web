@@ -11,6 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
+  /* Wortmarke lokal (Marken-Standard, nicht von Google abhängig) */
+  @font-face{font-family:"Orbitron";src:url("assets/fonts/Orbitron.ttf") format("truetype");
+    font-weight:400 900;font-style:normal;font-display:swap}
   /* ---------- Self Design Tokens ---------- */
   :root{
     --self-bg-0:#080c11; --self-bg-1:#0d1117; --self-bg-2:#161b22; --self-bg-3:#1c2333;
@@ -41,9 +44,13 @@
 
   /* ---------- Header ---------- */
   header.top{padding:26px 0 18px;text-align:center;border-bottom:1px solid var(--self-line)}
-  header.top img.logo{height:78px;width:auto;display:block;margin:0 auto 12px;
-    filter:drop-shadow(0 6px 20px rgba(0,0,0,.5))}
-  header.top p{margin:0;color:var(--self-text-2);font-size:.95rem;max-width:32ch;margin:0 auto}
+  header.top img.shield{height:60px;width:auto;display:block;margin:0 auto 14px;
+    filter:drop-shadow(0 4px 16px rgba(0,0,0,.5))}
+  .wordmark{font-family:"Orbitron",var(--self-font-sans);font-weight:800;font-size:2rem;
+    line-height:1;letter-spacing:.5px}
+  .wordmark .s{color:var(--self-ice-bright)}
+  .wordmark .p{color:var(--self-teal-bright)}
+  header.top p{margin:11px 0 0;color:var(--self-text-2);font-size:.95rem}
 
   /* ---------- Sticky Fortschritt ---------- */
   .progress-bar{position:sticky;top:0;z-index:30;background:rgba(8,12,17,.94);
@@ -75,6 +82,10 @@
   .btn-ghost{background:var(--self-bg-3);color:var(--self-text);border-color:var(--self-line-strong)}
   .btn-ghost:hover{border-color:var(--self-teal)}
   .btn:active{transform:translateY(1px)}
+  .autosave-hint{margin:6px 2px 0;font-size:.74rem;color:var(--self-text-3);font-family:var(--self-font-mono);
+    display:flex;align-items:center;gap:7px}
+  .autosave-hint::before{content:"";width:7px;height:7px;border-radius:99px;background:var(--self-teal);
+    box-shadow:0 0 0 3px rgba(51,167,140,.2)}
 
   /* ---------- Legende ---------- */
   .legend{display:flex;gap:16px;flex-wrap:wrap;background:var(--self-bg-2);
@@ -224,8 +235,9 @@
 
 <header class="top">
   <div class="wrap">
-    <img class="logo" src="assets/logo.png" alt="SelfPanini" width="102" height="78" />
-    <p>Sammle, hake ab und tausche – dein WM 2026 Album.</p>
+    <img class="shield" src="assets/shield.png" alt="SelfPanini" width="60" height="74" />
+    <div class="wordmark"><span class="s">Self</span><span class="p">Panini</span></div>
+    <p>Dein WM 2026 Sammelalbum</p>
   </div>
 </header>
 
@@ -254,9 +266,11 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="search" type="search" inputmode="text" placeholder="Suchen: z. B. GER 4 oder Deutschland" />
     </div>
+    <button class="btn btn-ghost" id="btnSave">Speichern</button>
     <button class="btn btn-primary" id="btnShare">Teilen</button>
     <button class="btn btn-ghost" id="btnMenu">Mehr</button>
   </div>
+  <p class="autosave-hint" id="autosaveHint">Automatisch auf diesem Gerät gespeichert.</p>
 
   <div class="legend">
     <span class="chip"><span class="dot miss"></span> <b>Leer</b> = fehlt</span>
@@ -673,14 +687,16 @@
   };
 
   /* ---------- Backup ---------- */
-  document.getElementById('btnExport').onclick=function(){
+  function downloadBackup(){
     var data=JSON.stringify({v:1, nick:nick, state:state});
     var blob=new Blob([data], {type:'application/json'});
     var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download='wm2026-album-backup.json'; a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-    toast('Backup gespeichert');
-  };
+    toast('Als Datei gespeichert');
+  }
+  document.getElementById('btnSave').onclick=downloadBackup;
+  document.getElementById('btnExport').onclick=function(){ downloadBackup(); };
   document.getElementById('btnImport').onclick=function(){ document.getElementById('fileImport').click(); };
   document.getElementById('fileImport').addEventListener('change', function(e){
     var f=e.target.files[0]; if(!f)return;
