@@ -101,8 +101,8 @@
   /* ---------- Team-Sprungnavigation ---------- */
   .jump{display:flex;gap:6px;overflow-x:auto;padding:12px 0 4px;-webkit-overflow-scrolling:touch}
   .jump button{flex:0 0 auto;border:1px solid var(--self-line-strong);background:var(--self-bg-2);
-    border-radius:99px;padding:6px 12px;font-size:.76rem;cursor:pointer;
-    font-family:var(--self-font-mono);color:var(--self-text-2);letter-spacing:.5px;
+    border-radius:99px;padding:7px 14px;font-size:.82rem;cursor:pointer;
+    font-family:var(--self-font-sans);font-weight:600;color:var(--self-text-2);letter-spacing:.2px;
     transition:all var(--self-dur-fast) var(--self-ease)}
   .jump button:hover{border-color:var(--self-teal);color:var(--self-text)}
 
@@ -455,8 +455,8 @@
   TEAMS.forEach(function(t){ for(var n=1;n<=PER_TEAM;n++) ORDER.push(t.code+n); });
   for(var s=0;s<SPECIAL.count;s++) ORDER.push('FCW'+s);
   var TOTAL = ORDER.length; // 980
-  // Anzeige-Reihenfolge alphabetisch nach Kürzel (ORDER oben bleibt fix -> Sync/Links stabil)
-  var DISPLAY = TEAMS.slice().sort(function(a,b){ return a.code<b.code?-1:(a.code>b.code?1:0); });
+  // Anzeige-Reihenfolge alphabetisch nach LÄNDERNAME (ORDER oben bleibt fix -> Sync/Links stabil)
+  var DISPLAY = TEAMS.slice().sort(function(a,b){ return a.name.localeCompare(b.name,'de'); });
 
   // Echtes Flaggen-Bild (flagcdn.com); bei Fehler/offline -> Kürzel-Kästchen
   function flagHTML(t){
@@ -688,13 +688,13 @@
     DISPLAY.forEach(function(t){ frag.appendChild(makeTeamCard(t)); });
     frag.appendChild(makeSpecialCard());
     teamsEl.appendChild(frag);
-    // Sprungnavigation: alle Teams (Kürzel, alphabetisch) + Glitzer
+    // Sprungnavigation: Ländernamen alphabetisch + Glitzer
     DISPLAY.forEach(function(t){
-      var b=document.createElement('button'); b.textContent=t.code;
+      var b=document.createElement('button'); b.textContent=t.name;
       b.onclick=function(){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); };
       jumpEl.appendChild(b);
     });
-    var bs=document.createElement('button'); bs.textContent='FCW';
+    var bs=document.createElement('button'); bs.textContent='Glitzer';
     bs.onclick=function(){ document.getElementById('team-FCW').scrollIntoView({behavior:'smooth'}); };
     jumpEl.appendChild(bs);
     TEAMS.forEach(function(t){ refreshTeam(t.code); });
