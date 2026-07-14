@@ -834,7 +834,7 @@
     } else {
       document.getElementById('tradeLead').textContent='So sieht die Sammlung von '+fname+' aus. Trage erst deine eigenen Sticker ein, dann siehst du den direkten Tausch!';
       body.appendChild(matchBlock('give',fname+' hat doppelt', frDup, 'Diese Sticker könntest du bekommen.'));
-      body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss.slice(0,60), frMiss.length+' Sticker fehlen'+(frMiss.length>60?' (erste 60)':'')+'.'));
+      body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss, frMiss.length+' Sticker fehlen.'));
     }
     openModal('tradeModal');
   }
