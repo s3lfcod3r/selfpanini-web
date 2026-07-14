@@ -455,6 +455,8 @@
   TEAMS.forEach(function(t){ for(var n=1;n<=PER_TEAM;n++) ORDER.push(t.code+n); });
   for(var s=0;s<SPECIAL.count;s++) ORDER.push('FCW'+s);
   var TOTAL = ORDER.length; // 980
+  // Anzeige-Reihenfolge alphabetisch nach Kürzel (ORDER oben bleibt fix -> Sync/Links stabil)
+  var DISPLAY = TEAMS.slice().sort(function(a,b){ return a.code<b.code?-1:(a.code>b.code?1:0); });
 
   // Echtes Flaggen-Bild (flagcdn.com); bei Fehler/offline -> Kürzel-Kästchen
   function flagHTML(t){
@@ -683,11 +685,11 @@
 
   function buildAll(){
     var frag=document.createDocumentFragment();
-    TEAMS.forEach(function(t){ frag.appendChild(makeTeamCard(t)); });
+    DISPLAY.forEach(function(t){ frag.appendChild(makeTeamCard(t)); });
     frag.appendChild(makeSpecialCard());
     teamsEl.appendChild(frag);
-    // Sprungnavigation: alle Teams (Kürzel) + Glitzer
-    TEAMS.forEach(function(t){
+    // Sprungnavigation: alle Teams (Kürzel, alphabetisch) + Glitzer
+    DISPLAY.forEach(function(t){
       var b=document.createElement('button'); b.textContent=t.code;
       b.onclick=function(){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); };
       jumpEl.appendChild(b);
