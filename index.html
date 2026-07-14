@@ -729,7 +729,7 @@
     return s;
   }
 
-  /* ---------- Tausch-Link Kodierung (kompakt: 2 Bit je Sticker -> Base64) ---------- */
+  /* ---------- Tausch-Link Kodierung (Bitmap + Doppelte-Liste, optional gzip -> Base64) ---------- */
   function bytesToB64url(bytes){
     var bin=''; for(var i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
     return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -740,29 +740,62 @@
     for(var i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
     return out;
   }
+  function gzip(bytes){
+    var cs=new CompressionStream('gzip'); var w=cs.writable.getWriter(); w.write(bytes); w.close();
+    return new Response(cs.readable).arrayBuffer().then(function(ab){ return new Uint8Array(ab); });
+  }
+  function gunzip(bytes){
+    var ds=new DecompressionStream('gzip'); var w=ds.writable.getWriter(); w.write(bytes); w.close();
+    return new Response(ds.readable).arrayBuffer().then(function(ab){ return new Uint8Array(ab); });
+  }
+  // Roh-Format: Bitmap "hab ich" (1 Bit/Sticker) + Liste der Doppelten (Index als uint16)
+  function packRaw(){
+    var nb=Math.ceil(TOTAL/8), dbl=[], bm=new Uint8Array(nb), i;
+    for(i=0;i<TOTAL;i++){ var c=countOf(ORDER[i]); if(c>=1) bm[i>>3]|=(1<<(i&7)); if(c>=2) dbl.push(i); }
+    var raw=new Uint8Array(nb+2+dbl.length*2);
+    raw.set(bm,0); raw[nb]=(dbl.length>>8)&255; raw[nb+1]=dbl.length&255;
+    for(var d=0;d<dbl.length;d++){ raw[nb+2+d*2]=(dbl[d]>>8)&255; raw[nb+2+d*2+1]=dbl[d]&255; }
+    return raw;
+  }
+  function unpackRaw(bytes){
+    var map={}, nb=Math.ceil(TOTAL/8), i;
+    for(i=0;i<TOTAL;i++){ if((bytes[i>>3]>>(i&7))&1) map[ORDER[i]]=1; }
+    var D=((bytes[nb]||0)<<8)|(bytes[nb+1]||0);
+    for(var d=0;d<D;d++){ var idx=((bytes[nb+2+d*2]||0)<<8)|(bytes[nb+2+d*2+1]||0); if(ORDER[idx]) map[ORDER[idx]]=2; }
+    return map;
+  }
   function encodeState(){
-    var bytes=new Uint8Array(Math.ceil(TOTAL/4));
-    for(var i=0;i<TOTAL;i++){ var v=Math.min(countOf(ORDER[i]),3); bytes[i>>2] |= v << ((i&3)*2); }
-    return bytesToB64url(bytes);
+    var raw=packRaw();
+    var b='b'+bytesToB64url(raw); // Fallback: unkomprimiert
+    if(typeof CompressionStream!=='undefined'){
+      return gzip(raw).then(function(z){ var zs='z'+bytesToB64url(z); return zs.length<b.length?zs:b; }).catch(function(){ return b; });
+    }
+    return Promise.resolve(b);
   }
   function decodeState(str){
-    if(!str) return null;
+    if(!str) return Promise.resolve(null);
     var map={}, i;
-    if(/^[0-9]{980}$/.test(str)){ // altes Format (1 Ziffer je Sticker) weiterhin lesbar
+    if(/^[0-9]{980}$/.test(str)){ // ganz altes Ziffernformat weiterhin lesbar
       for(i=0;i<TOTAL;i++){ var v=parseInt(str[i],10)||0; if(v>0) map[ORDER[i]]=v; }
-      return map;
+      return Promise.resolve(map);
     }
     try{
-      var bytes=b64urlToBytes(str);
-      for(i=0;i<TOTAL;i++){ var val=((bytes[i>>2]||0) >> ((i&3)*2)) & 3; if(val>0) map[ORDER[i]]=val; }
-      return map;
-    }catch(e){ return null; }
+      var tag=str.charAt(0), body=str.slice(1);
+      if(tag==='z'){ return gunzip(b64urlToBytes(body)).then(unpackRaw).catch(function(){ return null; }); }
+      if(tag==='b'){ return Promise.resolve(unpackRaw(b64urlToBytes(body))); }
+      // Fallback: kurzzeitiges 2-Bit-Format ohne Tag
+      var by=b64urlToBytes(str);
+      for(i=0;i<TOTAL;i++){ var val=((by[i>>2]||0)>>((i&3)*2))&3; if(val>0) map[ORDER[i]]=val; }
+      return Promise.resolve(map);
+    }catch(e){ return Promise.resolve(null); }
   }
   function buildTradeLink(){
     var base = location.href.split('#')[0];
-    var p = 't='+encodeState();
-    if(nick) p += '&n='+encodeURIComponent(nick);
-    return base+'#'+p;
+    return encodeState().then(function(enc){
+      var p = 't='+enc;
+      if(nick) p += '&n='+encodeURIComponent(nick);
+      return base+'#'+p;
+    });
   }
 
   /* ---------- Tausch-Ansicht ---------- */
@@ -770,31 +803,32 @@
     var h=location.hash.slice(1); if(!h) return;
     var params={}; h.split('&').forEach(function(kv){ var p=kv.split('='); params[p[0]]=p[1]; });
     if(!params.t) return;
-    var friend=decodeState(decodeURIComponent(params.t));
-    if(!friend){ return; }
     var fname = params.n ? decodeURIComponent(params.n) : 'Dein Freund';
-    var iHaveAny = Object.keys(state).length>0;
-    var youGet=[], youGive=[];
-    ORDER.forEach(function(id){
-      var mine=countOf(id), fr=friend[id]||0;
-      if(fr>1 && mine===0) youGet.push(labelFor(id));
-      if(mine>1 && fr===0) youGive.push(labelFor(id));
-    });
-    var frMiss=[], frDup=[];
-    ORDER.forEach(function(id){ var v=friend[id]||0; if(v===0)frMiss.push(labelFor(id)); if(v>1)frDup.push(labelFor(id)); });
+    decodeState(decodeURIComponent(params.t)).then(function(friend){
+      if(!friend){ return; }
+      var iHaveAny = Object.keys(state).length>0;
+      var youGet=[], youGive=[];
+      ORDER.forEach(function(id){
+        var mine=countOf(id), fr=friend[id]||0;
+        if(fr>1 && mine===0) youGet.push(labelFor(id));
+        if(mine>1 && fr===0) youGive.push(labelFor(id));
+      });
+      var frMiss=[], frDup=[];
+      ORDER.forEach(function(id){ var v=friend[id]||0; if(v===0)frMiss.push(labelFor(id)); if(v>1)frDup.push(labelFor(id)); });
 
-    document.getElementById('tradeTitle').textContent = fname+' – Tausch';
-    var body=document.getElementById('tradeBody'); body.innerHTML='';
-    if(iHaveAny){
-      document.getElementById('tradeLead').textContent='Vergleich mit deiner Sammlung:';
-      body.appendChild(matchBlock('get','Das kannst DU von '+fname+' bekommen', youGet, fname+' hat diese doppelt und dir fehlen sie.'));
-      body.appendChild(matchBlock('give','Das kann '+fname+' von DIR bekommen', youGive, 'Du hast diese doppelt und '+fname+' fehlen sie.'));
-    } else {
-      document.getElementById('tradeLead').textContent='So sieht die Sammlung von '+fname+' aus. Trage erst deine eigenen Sticker ein, dann siehst du den direkten Tausch!';
-      body.appendChild(matchBlock('give',fname+' hat doppelt', frDup, 'Diese Sticker könntest du bekommen.'));
-      body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss.slice(0,60), frMiss.length+' Sticker fehlen'+(frMiss.length>60?' (erste 60)':'')+'.'));
-    }
-    openModal('tradeModal');
+      document.getElementById('tradeTitle').textContent = fname+' – Tausch';
+      var body=document.getElementById('tradeBody'); body.innerHTML='';
+      if(iHaveAny){
+        document.getElementById('tradeLead').textContent='Vergleich mit deiner Sammlung:';
+        body.appendChild(matchBlock('get','Das kannst DU von '+fname+' bekommen', youGet, fname+' hat diese doppelt und dir fehlen sie.'));
+        body.appendChild(matchBlock('give','Das kann '+fname+' von DIR bekommen', youGive, 'Du hast diese doppelt und '+fname+' fehlen sie.'));
+      } else {
+        document.getElementById('tradeLead').textContent='So sieht die Sammlung von '+fname+' aus. Trage erst deine eigenen Sticker ein, dann siehst du den direkten Tausch!';
+        body.appendChild(matchBlock('give',fname+' hat doppelt', frDup, 'Diese Sticker könntest du bekommen.'));
+        body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss.slice(0,60), frMiss.length+' Sticker fehlen'+(frMiss.length>60?' (erste 60)':'')+'.'));
+      }
+      openModal('tradeModal');
+    });
   }
   function matchBlock(kind,title,arr,hint){
     var d=document.createElement('div'); d.className='match';
@@ -836,9 +870,10 @@
   document.getElementById('btnCopyList').onclick=function(){ copy(listText(), 'Listen kopiert!'); };
   document.getElementById('btnWhats').onclick=function(){ window.open('https://wa.me/?text='+encodeURIComponent(listText()), '_blank'); };
   document.getElementById('btnTradeLink').onclick=function(){
-    var link=buildTradeLink();
-    if(navigator.share){ navigator.share({title:'Mein WM 2026 Album', text:'Lass uns Sticker tauschen!', url:link}).catch(function(){ copy(link,'Tausch-Link kopiert!'); }); }
-    else { copy(link,'Tausch-Link kopiert!'); }
+    buildTradeLink().then(function(link){
+      if(navigator.share){ navigator.share({title:'Mein WM 2026 Album', text:'Lass uns Sticker tauschen!', url:link}).catch(function(){ copy(link,'Tausch-Link kopiert!'); }); }
+      else { copy(link,'Tausch-Link kopiert!'); }
+    });
   };
 
   /* ---------- Backup ---------- */
