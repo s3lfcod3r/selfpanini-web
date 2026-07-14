@@ -729,13 +729,34 @@
     return s;
   }
 
-  /* ---------- Tausch-Link Kodierung ---------- */
-  function encodeState(){ var s=''; ORDER.forEach(function(id){ s += String(Math.min(countOf(id),9)); }); return s; }
+  /* ---------- Tausch-Link Kodierung (kompakt: 2 Bit je Sticker -> Base64) ---------- */
+  function bytesToB64url(bytes){
+    var bin=''; for(var i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function b64urlToBytes(s){
+    s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+    var bin=atob(s); var out=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+    return out;
+  }
+  function encodeState(){
+    var bytes=new Uint8Array(Math.ceil(TOTAL/4));
+    for(var i=0;i<TOTAL;i++){ var v=Math.min(countOf(ORDER[i]),3); bytes[i>>2] |= v << ((i&3)*2); }
+    return bytesToB64url(bytes);
+  }
   function decodeState(str){
-    var map={};
-    if(!str || str.length!==TOTAL) return null;
-    for(var i=0;i<TOTAL;i++){ var v=parseInt(str[i],10)||0; if(v>0) map[ORDER[i]]=v; }
-    return map;
+    if(!str) return null;
+    var map={}, i;
+    if(/^[0-9]{980}$/.test(str)){ // altes Format (1 Ziffer je Sticker) weiterhin lesbar
+      for(i=0;i<TOTAL;i++){ var v=parseInt(str[i],10)||0; if(v>0) map[ORDER[i]]=v; }
+      return map;
+    }
+    try{
+      var bytes=b64urlToBytes(str);
+      for(i=0;i<TOTAL;i++){ var val=((bytes[i>>2]||0) >> ((i&3)*2)) & 3; if(val>0) map[ORDER[i]]=val; }
+      return map;
+    }catch(e){ return null; }
   }
   function buildTradeLink(){
     var base = location.href.split('#')[0];
