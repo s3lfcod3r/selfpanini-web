@@ -61,9 +61,7 @@
     background:linear-gradient(90deg,var(--self-teal),var(--self-cyan));transition:width .4s var(--self-ease)}
 
   /* ---------- Toolbar ---------- */
-  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
-    position:sticky;top:0;z-index:20;background:var(--self-bg-0);
-    padding:10px 0 8px;margin:0;border-bottom:1px solid var(--self-line)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}
   .search{flex:1;min-width:170px;position:relative}
   .search input{width:100%;padding:12px 14px 12px 40px;border-radius:var(--self-radius-sm);
     border:1px solid var(--self-line-strong);font-size:1rem;background:var(--self-bg-2);
@@ -105,7 +103,7 @@
 
   /* ---------- Team-Karten ---------- */
   .team{background:var(--self-bg-2);border:1px solid var(--self-line);border-radius:var(--self-radius);
-    margin:14px 0;overflow:hidden;scroll-margin-top:var(--sticky-top,150px);transition:box-shadow var(--self-dur) var(--self-ease)}
+    margin:14px 0;overflow:hidden;scroll-margin-top:90px;transition:box-shadow var(--self-dur) var(--self-ease)}
   .team-head{display:flex;align-items:center;gap:12px;padding:13px 15px;cursor:pointer;
     background:var(--self-bg-1);border-bottom:1px solid var(--self-line);position:relative}
   .team-head::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
@@ -266,7 +264,7 @@
   <div class="toolbar">
     <div class="search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input id="search" type="search" inputmode="text" placeholder="Suchen: z. B. GER 4 oder Deutschland" />
+      <input id="search" type="search" inputmode="text" placeholder="Suchen + Enter: z. B. GER 4 oder Deutschland" />
     </div>
     <button class="btn btn-ghost" id="btnSave">Speichern</button>
     <button class="btn btn-primary" id="btnShare">Teilen</button>
@@ -701,13 +699,10 @@
     refreshProgress();
   }
 
-  /* ---------- Suche (kleines Delay; Suchleiste bleibt oben angeheftet sichtbar) ---------- */
-  var searchTimer=null;
-  document.getElementById('search').addEventListener('input', function(e){
-    var val=e.target.value;
-    if(searchTimer) clearTimeout(searchTimer);
-    searchTimer=setTimeout(function(){ runSearch(val); }, 300);
-  });
+  /* ---------- Suche: springt erst bei Enter/Suchen (beim Tippen bleibt das Suchfeld in Ruhe sichtbar) ---------- */
+  var searchEl=document.getElementById('search');
+  searchEl.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); runSearch(searchEl.value); searchEl.blur(); } });
+  searchEl.addEventListener('search', function(){ runSearch(searchEl.value); searchEl.blur(); });
   function runSearch(val){
     var q=(val||'').trim().toLowerCase();
     if(!q) return;
@@ -721,16 +716,6 @@
         cell.animate([{boxShadow:'0 0 0 0 rgba(51,167,140,.8)'},{boxShadow:'0 0 0 10px rgba(51,167,140,0)'}],{duration:700}); }
     }
   }
-  // Suchleiste unter der Fortschritts-Leiste anheften + Sprungabstand der Karten setzen
-  function syncStickyTop(){
-    var pb=document.querySelector('.progress-bar'), tb=document.querySelector('.toolbar');
-    if(!pb||!tb) return;
-    var ph=pb.offsetHeight;
-    tb.style.top=ph+'px';
-    document.documentElement.style.setProperty('--sticky-top',(ph+tb.offsetHeight+12)+'px');
-  }
-  window.addEventListener('resize', syncStickyTop);
-  window.addEventListener('orientationchange', syncStickyTop);
 
   /* ---------- Listen (fehlt / doppelt) ---------- */
   function missingList(){ var out=[]; ORDER.forEach(function(id){ if(countOf(id)===0) out.push(labelFor(id)); }); return out; }
@@ -989,9 +974,6 @@
 
   /* ---------- Start ---------- */
   buildAll();
-  syncStickyTop();
-  if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(syncStickyTop); }
-  setTimeout(syncStickyTop, 400);
   renderSyncUI();
   if(syncCode){ cloudPull(false); startPoll(); }
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && syncCode) cloudPull(false); });
