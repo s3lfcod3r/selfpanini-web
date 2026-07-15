@@ -61,7 +61,9 @@
     background:linear-gradient(90deg,var(--self-teal),var(--self-cyan));transition:width .4s var(--self-ease)}
 
   /* ---------- Toolbar ---------- */
-  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 6px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+    position:sticky;top:0;z-index:20;background:var(--self-bg-0);
+    padding:10px 0 8px;margin:0;border-bottom:1px solid var(--self-line)}
   .search{flex:1;min-width:170px;position:relative}
   .search input{width:100%;padding:12px 14px 12px 40px;border-radius:var(--self-radius-sm);
     border:1px solid var(--self-line-strong);font-size:1rem;background:var(--self-bg-2);
@@ -103,7 +105,7 @@
 
   /* ---------- Team-Karten ---------- */
   .team{background:var(--self-bg-2);border:1px solid var(--self-line);border-radius:var(--self-radius);
-    margin:14px 0;overflow:hidden;scroll-margin-top:150px;transition:box-shadow var(--self-dur) var(--self-ease)}
+    margin:14px 0;overflow:hidden;scroll-margin-top:var(--sticky-top,150px);transition:box-shadow var(--self-dur) var(--self-ease)}
   .team-head{display:flex;align-items:center;gap:12px;padding:13px 15px;cursor:pointer;
     background:var(--self-bg-1);border-bottom:1px solid var(--self-line);position:relative}
   .team-head::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
@@ -699,9 +701,15 @@
     refreshProgress();
   }
 
-  /* ---------- Suche ---------- */
+  /* ---------- Suche (kleines Delay; Suchleiste bleibt oben angeheftet sichtbar) ---------- */
+  var searchTimer=null;
   document.getElementById('search').addEventListener('input', function(e){
-    var q=e.target.value.trim().toLowerCase();
+    var val=e.target.value;
+    if(searchTimer) clearTimeout(searchTimer);
+    searchTimer=setTimeout(function(){ runSearch(val); }, 300);
+  });
+  function runSearch(val){
+    var q=(val||'').trim().toLowerCase();
     if(!q) return;
     var t=TEAMS.filter(function(x){return x.name.toLowerCase().indexOf(q)===0 || x.code.toLowerCase()===q;})[0];
     if(t){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); return; }
@@ -712,7 +720,17 @@
       if(cell){ cell.scrollIntoView({behavior:'smooth',block:'center'});
         cell.animate([{boxShadow:'0 0 0 0 rgba(51,167,140,.8)'},{boxShadow:'0 0 0 10px rgba(51,167,140,0)'}],{duration:700}); }
     }
-  });
+  }
+  // Suchleiste unter der Fortschritts-Leiste anheften + Sprungabstand der Karten setzen
+  function syncStickyTop(){
+    var pb=document.querySelector('.progress-bar'), tb=document.querySelector('.toolbar');
+    if(!pb||!tb) return;
+    var ph=pb.offsetHeight;
+    tb.style.top=ph+'px';
+    document.documentElement.style.setProperty('--sticky-top',(ph+tb.offsetHeight+12)+'px');
+  }
+  window.addEventListener('resize', syncStickyTop);
+  window.addEventListener('orientationchange', syncStickyTop);
 
   /* ---------- Listen (fehlt / doppelt) ---------- */
   function missingList(){ var out=[]; ORDER.forEach(function(id){ if(countOf(id)===0) out.push(labelFor(id)); }); return out; }
@@ -971,6 +989,9 @@
 
   /* ---------- Start ---------- */
   buildAll();
+  syncStickyTop();
+  if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(syncStickyTop); }
+  setTimeout(syncStickyTop, 400);
   renderSyncUI();
   if(syncCode){ cloudPull(false); startPoll(); }
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && syncCode) cloudPull(false); });
