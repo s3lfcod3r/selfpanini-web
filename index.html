@@ -472,7 +472,7 @@
   function labelFor(id){
     if(id.indexOf('FCW')===0){
       var num = id.slice(3);
-      return 'FCW '+(num.length<2?('0'+num):num);
+      return 'FWC '+(num.length<2?('0'+num):num);
     }
     var m = id.match(/^([A-Z]+)(\d+)$/);
     return m ? (m[1]+' '+m[2]) : id;
@@ -607,7 +607,7 @@
     var head=document.createElement('div'); head.className='team-head special';
     head.innerHTML =
       '<span class="fl-fallback">✦</span>'+
-      '<span class="nm"><b>Glitzer-Sticker</b><span>FCW 00–19</span></span>'+
+      '<span class="nm"><b>Glitzer-Sticker</b><span>FWC 00–19</span></span>'+
       '<span class="special-tag">Special</span>'+
       '<span class="done-badge">Komplett</span>'+
       '<span class="cnt" data-cnt="FCW">0/'+SPECIAL.count+'</span>';
@@ -634,7 +634,7 @@
     c.setAttribute('role','button');
     c.setAttribute('tabindex','0');
     c.setAttribute('aria-label', labelFor(id));
-    c.innerHTML='<small>'+id.replace(/[0-9]+$/,'')+'</small>'+shortLabel+'<span class="badge hidden"></span>';
+    c.innerHTML='<small>'+(id.indexOf('FCW')===0?'FWC':id.replace(/[0-9]+$/,''))+'</small>'+shortLabel+'<span class="badge hidden"></span>';
     paintCell(c);
     c.addEventListener('click', function(){
       var wasEmpty = countOf(id)===0;
@@ -696,7 +696,7 @@
       b.onclick=function(){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); };
       jumpEl.appendChild(b);
     });
-    var bs=document.createElement('button'); bs.textContent='FCW'; bs.title='Glitzer-Sticker';
+    var bs=document.createElement('button'); bs.textContent='FWC'; bs.title='Glitzer-Sticker';
     bs.onclick=function(){ document.getElementById('team-FCW').scrollIntoView({behavior:'smooth'}); };
     jumpEl.appendChild(bs);
     TEAMS.forEach(function(t){ refreshTeam(t.code); });
