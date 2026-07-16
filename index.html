@@ -192,6 +192,26 @@
   .field input:focus{outline:none;border-color:var(--self-teal);box-shadow:0 0 0 3px rgba(51,167,140,.18)}
   .section-title{font-size:.66rem;text-transform:uppercase;letter-spacing:.16em;color:var(--self-text-3);
     font-weight:600;margin:18px 0 6px;font-family:var(--self-font-mono)}
+  /* Tausche */
+  .tbadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;margin-left:6px;
+    border-radius:99px;background:var(--self-teal);color:#05110d;font-family:var(--self-font-mono);
+    font-size:.68rem;font-weight:600}
+  .trade{border:1px solid var(--self-line);border-radius:var(--self-radius);padding:12px 14px;margin:8px 0;background:var(--self-bg-2)}
+  .trade .th{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px}
+  .trade .who{font-weight:700;font-size:.95rem}
+  .trade .st{font-family:var(--self-font-mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;
+    padding:4px 8px;border-radius:99px}
+  .trade .st.open{color:var(--self-yellow);box-shadow:inset 0 0 0 1px rgba(210,153,34,.4)}
+  .trade .st.done{color:var(--self-teal-bright);background:rgba(51,167,140,.15)}
+  .trade .st.new{color:#05110d;background:var(--self-teal)}
+  .trade .ln{font-size:.88rem;color:var(--self-text-2);margin:3px 0;font-family:var(--self-font-mono)}
+  .trade .ln b{color:var(--self-text);font-family:var(--self-font-sans)}
+  .trade .row-btns{margin:10px 0 0}
+  .trade .row-btns .btn{padding:9px 12px;font-size:.82rem}
+  .pick{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+  .pick button{font-family:var(--self-font-mono);font-size:.76rem;padding:6px 10px;border-radius:99px;cursor:pointer;
+    border:1px solid var(--self-line-strong);background:var(--self-bg-3);color:var(--self-text-3)}
+  .pick button.on{background:rgba(51,167,140,.18);border-color:var(--self-teal);color:var(--self-teal-bright)}
   .synccode{font-family:var(--self-font-mono);font-size:1.35rem;font-weight:600;letter-spacing:.1em;
     color:var(--self-teal-bright);background:var(--self-bg-2);border:1px solid var(--self-line-strong);
     border-radius:var(--self-radius-sm);padding:13px 14px;text-align:center;margin:0 0 10px;user-select:all}
@@ -336,6 +356,11 @@
     </div>
     <input type="file" id="fileImport" accept="application/json" class="hidden" />
 
+    <div class="section-title">Tausche</div>
+    <div class="row-btns">
+      <button class="btn btn-ghost" id="btnTrades" style="flex:1">Meine Tausche <span id="tradesBadge" class="tbadge hidden">0</span></button>
+    </div>
+
     <div class="section-title">Cloud-Sync (Geräte abgleichen)</div>
     <p class="lead" id="syncStatus" style="margin:0 0 10px">Nicht verbunden – nur auf diesem Gerät gespeichert.</p>
     <div id="syncConnected" class="hidden">
@@ -370,6 +395,19 @@
     </div>
     <div class="row-btns">
       <button class="btn btn-ghost" id="btnCloseMenu" style="flex:1">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Meine-Tausche-Modal -->
+<div class="overlay" id="tradesModal">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h2>Meine Tausche</h2>
+    <p class="lead">Anfragen und vereinbarte Tausche. Erst wenn ihr die Sticker wirklich getauscht habt, auf „Wirklich getauscht" tippen – dann bucht die App bei beiden.</p>
+    <div id="tradesList"></div>
+    <div class="row-btns">
+      <button class="btn btn-primary" id="btnCloseTrades" style="flex:1">Schließen</button>
     </div>
   </div>
 </div>
@@ -566,6 +604,121 @@
       status.textContent='Nicht verbunden – nur auf diesem Gerät gespeichert.';
       if(hint) hint.textContent='Automatisch auf diesem Gerät gespeichert.';
     }
+  }
+
+  /* ---------- Tausche: Anfragen, Status, Verbuchung ---------- */
+  var inboxCode = localStorage.getItem('selfpanini_inbox') || '';
+  var trades = (function(){ try{ return JSON.parse(localStorage.getItem('selfpanini_trades')||'[]'); }catch(e){ return []; } })();
+  var tradeCtx = null; // Kontext des gerade geöffneten Tausch-Links
+  function saveTrades(){ try{ localStorage.setItem('selfpanini_trades', JSON.stringify(trades)); }catch(e){} }
+  function ensureInbox(){ if(!inboxCode){ inboxCode='IN-'+genShareCode(); localStorage.setItem('selfpanini_inbox', inboxCode); } return inboxCode; }
+  function tradeById(id){ for(var i=0;i<trades.length;i++){ if(trades[i].id===id) return trades[i]; } return null; }
+  function mkBtn(txt, cls, fn){ var b=document.createElement('button'); b.className='btn '+cls; b.textContent=txt; b.onclick=fn; return b; }
+
+  function sendTradeRequest(want, offer){
+    if(!tradeCtx || !tradeCtx.inbox){ toast('Für diesen Link sind keine Anfragen möglich'); return; }
+    if(!want.length && !offer.length){ toast('Nichts ausgewählt'); return; }
+    var id='TR-'+genShareCode()+genShareCode();
+    var rec={v:1, from:(nick||'Ein Freund'), want:want, offer:offer, status:'open', ts:Date.now()};
+    fetch(WORKER+'/a/'+encodeURIComponent(id), {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)})
+      .then(function(r){ if(!r.ok) throw 0; return fetch(WORKER+'/a/'+encodeURIComponent(tradeCtx.inbox)); })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var list=(d&&d.requests)||[];
+        if(list.indexOf(id)<0) list.push(id);
+        return fetch(WORKER+'/a/'+encodeURIComponent(tradeCtx.inbox), {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({v:1,requests:list})});
+      })
+      .then(function(){
+        trades.push({id:id, role:'requester', partner:tradeCtx.fname, want:want, offer:offer, status:'open', applied:false, ts:rec.ts});
+        saveTrades(); renderTradesBadge();
+        toast('Tauschanfrage gesendet');
+        closeModal('tradeModal');
+      })
+      .catch(function(){ toast('Cloud nicht erreichbar'); });
+  }
+
+  function pollInbox(){
+    if(!inboxCode) return;
+    fetch(WORKER+'/a/'+encodeURIComponent(inboxCode)).then(function(r){return r.json();}).then(function(d){
+      var ids=(d&&d.requests)||[];
+      ids.forEach(function(id){ if(!tradeById(id)) fetchIncoming(id); });
+    }).catch(function(){});
+  }
+  function fetchIncoming(id){
+    fetch(WORKER+'/a/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(d){
+      if(!d||d.empty||!d.want) return;
+      trades.push({id:id, role:'owner', partner:d.from||'Ein Freund', want:d.want, offer:d.offer, status:d.status||'open', applied:false, ts:d.ts||0});
+      saveTrades(); renderTradesBadge(); renderTradesList();
+    }).catch(function(){});
+  }
+  function refreshTrades(){
+    trades.forEach(function(t){
+      fetch(WORKER+'/a/'+encodeURIComponent(t.id)).then(function(r){return r.json();}).then(function(d){
+        if(!d||!d.status||d.status===t.status) return;
+        t.status=d.status; applyTradeStatus(t); saveTrades(); renderTradesBadge(); renderTradesList();
+      }).catch(function(){});
+    });
+  }
+  function setTradeStatus(t, status){
+    fetch(WORKER+'/a/'+encodeURIComponent(t.id)).then(function(r){return r.json();}).then(function(d){
+      var rec=(d&&d.want)?d:{v:1, from:t.partner, want:t.want, offer:t.offer, ts:t.ts};
+      rec.status=status;
+      return fetch(WORKER+'/a/'+encodeURIComponent(t.id), {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});
+    }).then(function(){
+      t.status=status; applyTradeStatus(t); saveTrades(); renderTradesBadge(); renderTradesList();
+      if(status==='done') toast('Getauscht – Album aktualisiert');
+      else if(status==='accepted') toast('Angenommen – steht jetzt unter „Meine Tausche"');
+      else if(status==='undone') toast('Rückgängig gemacht');
+    }).catch(function(){ toast('Cloud nicht erreichbar'); });
+  }
+  // bucht bzw. entbucht genau einmal (dir: 1 = buchen, -1 = zurück)
+  function applyTradeStatus(t){
+    if(t.status==='done' && !t.applied){ bookTrade(t, 1); t.applied=true; }
+    else if(t.status!=='done' && t.applied){ bookTrade(t, -1); t.applied=false; }
+  }
+  function bookTrade(t, dir){
+    var receive=(t.role==='owner')?t.offer:t.want;
+    var give   =(t.role==='owner')?t.want :t.offer;
+    receive.forEach(function(id){ setCount(id, countOf(id)+dir); });
+    give.forEach(function(id){ setCount(id, countOf(id)-dir); });
+    rerenderAll();
+  }
+  function renderTradesBadge(){
+    var b=document.getElementById('tradesBadge'); if(!b) return;
+    var n=trades.filter(function(t){ return t.role==='owner' && t.status==='open'; }).length;
+    if(n>0){ b.textContent=n; b.classList.remove('hidden'); } else { b.classList.add('hidden'); }
+  }
+  function renderTradesList(){
+    var box=document.getElementById('tradesList'); if(!box) return;
+    if(!trades.length){ box.innerHTML='<p class="lead">Noch keine Tausche. Schick jemandem einen Tausch-Link – oder öffne einen, dann kannst du eine Anfrage stellen.</p>'; return; }
+    var order={open:0, accepted:1, done:2, declined:3, undone:4};
+    var list=trades.slice().sort(function(a,b){ return (order[a.status]||9)-(order[b.status]||9) || (b.ts||0)-(a.ts||0); });
+    box.innerHTML='';
+    list.forEach(function(t){
+      var receive=(t.role==='owner')?t.offer:t.want;
+      var give   =(t.role==='owner')?t.want :t.offer;
+      var stTxt, stCls;
+      if(t.status==='open'){ stTxt=(t.role==='owner'?'Neue Anfrage':'Wartet auf Antwort'); stCls=(t.role==='owner'?'new':'open'); }
+      else if(t.status==='accepted'){ stTxt='Offen – noch tauschen'; stCls='open'; }
+      else if(t.status==='done'){ stTxt='Erledigt'; stCls='done'; }
+      else if(t.status==='declined'){ stTxt='Abgelehnt'; stCls='open'; }
+      else { stTxt='Rückgängig'; stCls='open'; }
+      var d=document.createElement('div'); d.className='trade';
+      d.innerHTML='<div class="th"><span class="who">'+t.partner+'</span><span class="st '+stCls+'">'+stTxt+'</span></div>'+
+        '<div class="ln"><b>Du gibst:</b> '+(give.map(labelFor).join(', ')||'–')+'</div>'+
+        '<div class="ln"><b>Du bekommst:</b> '+(receive.map(labelFor).join(', ')||'–')+'</div>';
+      var btns=document.createElement('div'); btns.className='row-btns';
+      if(t.role==='owner' && t.status==='open'){
+        btns.appendChild(mkBtn('Annehmen','btn-primary',function(){ setTradeStatus(t,'accepted'); }));
+        btns.appendChild(mkBtn('Ablehnen','btn-ghost',function(){ setTradeStatus(t,'declined'); }));
+      } else if(t.status==='accepted'){
+        btns.appendChild(mkBtn('✓ Wirklich getauscht','btn-primary',function(){ setTradeStatus(t,'done'); }));
+      } else if(t.status==='done'){
+        btns.appendChild(mkBtn('Rückgängig','btn-ghost',function(){ setTradeStatus(t,'undone'); }));
+      }
+      if(btns.children.length) d.appendChild(btns);
+      box.appendChild(d);
+    });
   }
 
   function load(){
@@ -792,7 +945,7 @@
   function buildTradeLink(){
     var base = location.href.split('#')[0];
     return encodeState().then(function(enc){
-      var p = 't='+enc;
+      var p = 't='+enc+'&i='+ensureInbox();
       if(nick) p += '&n='+encodeURIComponent(nick);
       return base+'#'+p;
     });
@@ -803,22 +956,25 @@
     var h=location.hash.slice(1); if(!h) return;
     var params={}; h.split('&').forEach(function(kv){ var p=kv.split('='); params[p[0]]=p[1]; });
     var fname = params.n ? decodeURIComponent(params.n) : 'Dein Freund';
+    var inbox = params.i ? decodeURIComponent(params.i) : '';
     if(params.t){
-      decodeState(decodeURIComponent(params.t)).then(function(friend){ if(friend) renderTrade(friend, fname); });
+      decodeState(decodeURIComponent(params.t)).then(function(friend){
+        if(friend){ tradeCtx={inbox:inbox, fname:fname}; renderTrade(friend, fname); }
+      });
     } else if(params.s){
       fetch(WORKER+'/a/'+encodeURIComponent(params.s)).then(function(r){return r.json();}).then(function(d){
-        if(d && !d.empty && d.state) renderTrade(d.state, d.nick||fname);
+        if(d && !d.empty && d.state){ var fn=d.nick||fname; tradeCtx={inbox:inbox, fname:fn}; renderTrade(d.state, fn); }
         else toast('Tausch-Code nicht gefunden');
       }).catch(function(){ toast('Cloud nicht erreichbar'); });
     }
   }
   function renderTrade(friend, fname){
     var iHaveAny = Object.keys(state).length>0;
-    var youGet=[], youGive=[];
+    var youGet=[], youGive=[], youGetIds=[], youGiveIds=[];
     ORDER.forEach(function(id){
       var mine=countOf(id), fr=friend[id]||0;
-      if(fr>1 && mine===0) youGet.push(labelFor(id));
-      if(mine>1 && fr===0) youGive.push(labelFor(id));
+      if(fr>1 && mine===0){ youGet.push(labelFor(id)); youGetIds.push(id); }
+      if(mine>1 && fr===0){ youGive.push(labelFor(id)); youGiveIds.push(id); }
     });
     var frMiss=[], frDup=[];
     ORDER.forEach(function(id){ var v=friend[id]||0; if(v===0)frMiss.push(labelFor(id)); if(v>1)frDup.push(labelFor(id)); });
@@ -829,12 +985,47 @@
       document.getElementById('tradeLead').textContent='Vergleich mit deiner Sammlung:';
       body.appendChild(matchBlock('get','Das kannst DU von '+fname+' bekommen', youGet, fname+' hat diese doppelt und dir fehlen sie.'));
       body.appendChild(matchBlock('give','Das kann '+fname+' von DIR bekommen', youGive, 'Du hast diese doppelt und '+fname+' fehlen sie.'));
+      if(tradeCtx && tradeCtx.inbox && (youGetIds.length || youGiveIds.length)){
+        body.appendChild(requestBlock(youGetIds, youGiveIds, fname));
+      }
     } else {
       document.getElementById('tradeLead').textContent='So sieht die Sammlung von '+fname+' aus. Trage erst deine eigenen Sticker ein, dann siehst du den direkten Tausch!';
       body.appendChild(matchBlock('give',fname+' hat doppelt', frDup, 'Diese Sticker könntest du bekommen.'));
       body.appendChild(matchBlock('get',fname+' fehlen noch', frMiss, frMiss.length+' Sticker fehlen.'));
     }
     openModal('tradeModal');
+  }
+  // Auswahl + „Tauschanfrage senden" (alles vorausgewählt, antippen zum Abwählen)
+  function requestBlock(wantIds, offerIds, fname){
+    var sel={want:{}, offer:{}};
+    wantIds.forEach(function(id){ sel.want[id]=true; });
+    offerIds.forEach(function(id){ sel.offer[id]=true; });
+    var d=document.createElement('div'); d.className='match';
+    d.innerHTML='<div class="mh get">Tauschanfrage an '+fname+'</div>';
+    var mb=document.createElement('div'); mb.className='mb';
+    function group(title, ids, key){
+      var wrap=document.createElement('div');
+      var h=document.createElement('div'); h.style.margin='8px 0 2px';
+      h.innerHTML='<b>'+title+'</b> <span class="muted">(antippen zum Abwählen)</span>';
+      wrap.appendChild(h);
+      var pick=document.createElement('div'); pick.className='pick';
+      ids.forEach(function(id){
+        var b=document.createElement('button'); b.className='on'; b.textContent=labelFor(id);
+        b.onclick=function(){ sel[key][id]=!sel[key][id]; b.className=sel[key][id]?'on':''; };
+        pick.appendChild(b);
+      });
+      wrap.appendChild(pick);
+      return wrap;
+    }
+    if(wantIds.length) mb.appendChild(group('Das möchtest du haben:', wantIds, 'want'));
+    if(offerIds.length) mb.appendChild(group('Das gibst du dafür:', offerIds, 'offer'));
+    var btns=document.createElement('div'); btns.className='row-btns';
+    btns.appendChild(mkBtn('Tauschanfrage senden','btn-primary',function(){
+      sendTradeRequest(wantIds.filter(function(id){return sel.want[id];}), offerIds.filter(function(id){return sel.offer[id];}));
+    }));
+    mb.appendChild(btns);
+    d.appendChild(mb);
+    return d;
   }
   function matchBlock(kind,title,arr,hint){
     var d=document.createElement('div'); d.className='match';
@@ -859,6 +1050,8 @@
   document.getElementById('btnCloseShare').onclick=function(){ closeModal('shareModal'); };
   document.getElementById('btnMenu').onclick=function(){ renderSyncUI(); openModal('menuModal'); };
   document.getElementById('btnCloseMenu').onclick=function(){ closeModal('menuModal'); };
+  document.getElementById('btnTrades').onclick=function(){ renderTradesList(); openModal('tradesModal'); pollInbox(); refreshTrades(); };
+  document.getElementById('btnCloseTrades').onclick=function(){ closeModal('tradesModal'); };
   document.getElementById('btnSyncNew').onclick=createCode;
   document.getElementById('btnSyncConnect').onclick=function(){ connectCode(document.getElementById('syncInput').value); };
   document.getElementById('btnSyncCopy').onclick=function(){ copy(syncCode,'Code kopiert!'); };
@@ -886,7 +1079,7 @@
   function genShareCode(){ var A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s=''; for(var i=0;i<6;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
   document.getElementById('btnShortLink').onclick=function(){
     var code=genShareCode();
-    var link=location.href.split('#')[0]+'#s='+code;
+    var link=location.href.split('#')[0]+'#s='+code+'&i='+ensureInbox()+(nick?('&n='+encodeURIComponent(nick)):'');
     var payload=JSON.stringify({v:1, nick:nick, state:state, updatedAt:Date.now()});
     fetch(WORKER+'/a/'+encodeURIComponent(code), {method:'PUT', headers:{'Content-Type':'application/json'}, body:payload})
       .then(function(r){ if(r.ok) shareOrCopy(link,'Kurzer Tausch-Link kopiert!'); else toast('Cloud nicht erreichbar'); })
@@ -975,8 +1168,15 @@
   /* ---------- Start ---------- */
   buildAll();
   renderSyncUI();
+  renderTradesBadge();
+  pollInbox(); refreshTrades();
+  setInterval(function(){ if(document.visibilityState==='visible'){ pollInbox(); refreshTrades(); } }, 25000);
   if(syncCode){ cloudPull(false); startPoll(); }
-  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && syncCode) cloudPull(false); });
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState!=='visible') return;
+    if(syncCode) cloudPull(false);
+    pollInbox(); refreshTrades();
+  });
   if(location.hash.indexOf('t=')>=0 || location.hash.indexOf('s=')>=0){ setTimeout(openTradeFromHash, 250); }
 
 })();
