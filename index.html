@@ -668,7 +668,10 @@
       t.status=status; applyTradeStatus(t); saveTrades(); renderTradesBadge(); renderTradesList();
       if(status==='done') toast('Getauscht – Album aktualisiert');
       else if(status==='accepted') toast('Angenommen – steht jetzt unter „Meine Tausche"');
-      else if(status==='undone') toast('Rückgängig gemacht');
+      else if(status==='undone') toast('Rückgängig gemacht – Album zurückgesetzt');
+      else if(status==='withdrawn') toast('Anfrage zurückgezogen');
+      else if(status==='cancelled') toast('Tausch abgebrochen');
+      else if(status==='declined') toast('Anfrage abgelehnt');
     }).catch(function(){ toast('Cloud nicht erreichbar'); });
   }
   // bucht bzw. entbucht genau einmal (dir: 1 = buchen, -1 = zurück)
@@ -683,6 +686,52 @@
     give.forEach(function(id){ setCount(id, countOf(id)-dir); });
     rerenderAll();
   }
+  // Anfrage nachträglich ändern (nur solange sie offen ist)
+  function editTrade(t, card){
+    var receiveKey=(t.role==='owner')?'offer':'want';
+    var giveKey   =(t.role==='owner')?'want' :'offer';
+    var sel={};
+    t.want.forEach(function(id){ sel[id]=true; });
+    t.offer.forEach(function(id){ sel[id]=true; });
+    card.innerHTML='<div class="th"><span class="who">'+t.partner+'</span><span class="st open">Ändern</span></div>';
+    function group(title, ids){
+      var w=document.createElement('div');
+      var h=document.createElement('div'); h.style.margin='8px 0 2px';
+      h.innerHTML='<b>'+title+'</b> <span class="muted">(antippen zum Ab-/Anwählen)</span>';
+      w.appendChild(h);
+      var p=document.createElement('div'); p.className='pick';
+      ids.forEach(function(id){
+        var b=document.createElement('button'); b.className=sel[id]?'on':''; b.textContent=labelFor(id);
+        b.onclick=function(){ sel[id]=!sel[id]; b.className=sel[id]?'on':''; };
+        p.appendChild(b);
+      });
+      w.appendChild(p); return w;
+    }
+    card.appendChild(group('Du bekommst:', t[receiveKey]));
+    card.appendChild(group('Du gibst:', t[giveKey]));
+    var btns=document.createElement('div'); btns.className='row-btns';
+    btns.appendChild(mkBtn('Speichern','btn-primary',function(){
+      var nw=t.want.filter(function(id){return sel[id];});
+      var no=t.offer.filter(function(id){return sel[id];});
+      if(!nw.length && !no.length){ toast('Nichts ausgewählt'); return; }
+      saveTradeEdit(t, nw, no);
+    }));
+    btns.appendChild(mkBtn('Abbrechen','btn-ghost',function(){ renderTradesList(); }));
+    card.appendChild(btns);
+  }
+  function saveTradeEdit(t, want, offer){
+    fetch(WORKER+'/a/'+encodeURIComponent(t.id)).then(function(r){return r.json();}).then(function(d){
+      var rec=(d&&d.want)?d:{v:1, from:t.partner, ts:t.ts};
+      rec.want=want; rec.offer=offer; rec.status='open';
+      return fetch(WORKER+'/a/'+encodeURIComponent(t.id), {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});
+    }).then(function(){
+      t.want=want; t.offer=offer; t.status='open'; saveTrades(); renderTradesList(); toast('Anfrage geändert');
+    }).catch(function(){ toast('Cloud nicht erreichbar'); });
+  }
+  function removeTrade(t){
+    trades=trades.filter(function(x){ return x.id!==t.id; });
+    saveTrades(); renderTradesList(); renderTradesBadge(); toast('Aus Liste entfernt');
+  }
   function renderTradesBadge(){
     var b=document.getElementById('tradesBadge'); if(!b) return;
     var n=trades.filter(function(t){ return t.role==='owner' && t.status==='open'; }).length;
@@ -691,8 +740,9 @@
   function renderTradesList(){
     var box=document.getElementById('tradesList'); if(!box) return;
     if(!trades.length){ box.innerHTML='<p class="lead">Noch keine Tausche. Schick jemandem einen Tausch-Link – oder öffne einen, dann kannst du eine Anfrage stellen.</p>'; return; }
-    var order={open:0, accepted:1, done:2, declined:3, undone:4};
-    var list=trades.slice().sort(function(a,b){ return (order[a.status]||9)-(order[b.status]||9) || (b.ts||0)-(a.ts||0); });
+    var order={open:0, accepted:1, done:2, declined:3, withdrawn:4, cancelled:5, undone:6};
+    function ord(s){ var o=order[s]; return (o===undefined)?9:o; }
+    var list=trades.slice().sort(function(a,b){ return (ord(a.status)-ord(b.status)) || ((b.ts||0)-(a.ts||0)); });
     box.innerHTML='';
     list.forEach(function(t){
       var receive=(t.role==='owner')?t.offer:t.want;
@@ -702,7 +752,9 @@
       else if(t.status==='accepted'){ stTxt='Offen – noch tauschen'; stCls='open'; }
       else if(t.status==='done'){ stTxt='Erledigt'; stCls='done'; }
       else if(t.status==='declined'){ stTxt='Abgelehnt'; stCls='open'; }
-      else { stTxt='Rückgängig'; stCls='open'; }
+      else if(t.status==='withdrawn'){ stTxt='Zurückgezogen'; stCls='open'; }
+      else if(t.status==='cancelled'){ stTxt='Abgebrochen'; stCls='open'; }
+      else { stTxt='Rückgängig gemacht'; stCls='open'; }
       var d=document.createElement('div'); d.className='trade';
       d.innerHTML='<div class="th"><span class="who">'+t.partner+'</span><span class="st '+stCls+'">'+stTxt+'</span></div>'+
         '<div class="ln"><b>Du gibst:</b> '+(give.map(labelFor).join(', ')||'–')+'</div>'+
@@ -711,10 +763,16 @@
       if(t.role==='owner' && t.status==='open'){
         btns.appendChild(mkBtn('Annehmen','btn-primary',function(){ setTradeStatus(t,'accepted'); }));
         btns.appendChild(mkBtn('Ablehnen','btn-ghost',function(){ setTradeStatus(t,'declined'); }));
+      } else if(t.role==='requester' && t.status==='open'){
+        btns.appendChild(mkBtn('Ändern','btn-ghost',function(){ editTrade(t, d); }));
+        btns.appendChild(mkBtn('Zurückziehen','btn-ghost',function(){ setTradeStatus(t,'withdrawn'); }));
       } else if(t.status==='accepted'){
         btns.appendChild(mkBtn('✓ Wirklich getauscht','btn-primary',function(){ setTradeStatus(t,'done'); }));
+        btns.appendChild(mkBtn('Doch nicht tauschen','btn-ghost',function(){ setTradeStatus(t,'cancelled'); }));
       } else if(t.status==='done'){
         btns.appendChild(mkBtn('Rückgängig','btn-ghost',function(){ setTradeStatus(t,'undone'); }));
+      } else {
+        btns.appendChild(mkBtn('Aus Liste entfernen','btn-ghost',function(){ removeTrade(t); }));
       }
       if(btns.children.length) d.appendChild(btns);
       box.appendChild(d);
