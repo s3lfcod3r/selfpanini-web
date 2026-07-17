@@ -527,16 +527,29 @@
     localStorage.setItem('selfpanini_updated', String(localUpdatedAt));
     schedulePush();
   }
+  // Sparsam mit dem Cloud-Kontingent: selten schreiben, nie unnötig, aber beim Schließen sicher
+  var PUSH_DELAY=10000, lastPushedSig='', pushPending=false;
   function schedulePush(){
     if(!syncCode) return;
+    pushPending=true;
     if(pushTimer) clearTimeout(pushTimer);
-    pushTimer=setTimeout(cloudPush, 1400);
+    pushTimer=setTimeout(function(){ cloudPush(false); }, PUSH_DELAY);
   }
-  function cloudPush(){
+  function cloudPush(keepalive){
     if(!syncCode) return;
-    var payload=JSON.stringify({v:1, nick:nick, state:state, updatedAt:localUpdatedAt||Date.now()});
-    fetch(WORKER+'/a/'+encodeURIComponent(syncCode), {method:'PUT', headers:{'Content-Type':'application/json'}, body:payload}).catch(function(){});
+    if(pushTimer){ clearTimeout(pushTimer); pushTimer=null; }
+    var sig=JSON.stringify({n:nick, s:state});
+    if(sig===lastPushedSig){ pushPending=false; return; } // nichts geändert -> kein Schreibvorgang
+    var opts={method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({v:1, nick:nick, state:state, updatedAt:localUpdatedAt||Date.now()})};
+    if(keepalive) opts.keepalive=true;
+    fetch(WORKER+'/a/'+encodeURIComponent(syncCode), opts)
+      .then(function(){ lastPushedSig=sig; pushPending=false; })
+      .catch(function(){});
   }
+  // beim Schließen/Wegwischen letzte Änderung sicher wegschreiben
+  function flushPush(){ if(pushPending && syncCode) cloudPush(true); }
+  window.addEventListener('pagehide', flushPush);
   function cloudPull(showToast){
     if(!syncCode) return;
     fetch(WORKER+'/a/'+encodeURIComponent(syncCode)).then(function(r){return r.json();}).then(function(d){
@@ -586,7 +599,7 @@
       body:JSON.stringify({v:1,nick:'',state:{},updatedAt:0})}).then(function(){ toast('Aus der Cloud gelöscht'); }).catch(function(){ toast('Cloud nicht erreichbar'); });
     syncCode=''; localStorage.removeItem('selfpanini_sync'); stopPoll(); renderSyncUI();
   }
-  function startPoll(){ stopPoll(); if(!syncCode) return; pollTimer=setInterval(function(){ if(document.visibilityState==='visible') cloudPull(false); }, 20000); }
+  function startPoll(){ stopPoll(); if(!syncCode) return; pollTimer=setInterval(function(){ if(document.visibilityState==='visible') cloudPull(false); }, 60000); }
   function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
   function renderSyncUI(){
     var conn=document.getElementById('syncConnected');
@@ -651,8 +664,9 @@
       saveTrades(); renderTradesBadge(); renderTradesList();
     }).catch(function(){});
   }
+  // nur noch veränderliche Tausche abfragen (spart Lesevorgänge; abgelehnt/zurückgezogen/abgebrochen ändern sich nie mehr)
   function refreshTrades(){
-    trades.forEach(function(t){
+    trades.filter(function(t){ return t.status==='open' || t.status==='accepted' || t.status==='done'; }).forEach(function(t){
       fetch(WORKER+'/a/'+encodeURIComponent(t.id)).then(function(r){return r.json();}).then(function(d){
         if(!d||!d.status||d.status===t.status) return;
         t.status=d.status; applyTradeStatus(t); saveTrades(); renderTradesBadge(); renderTradesList();
@@ -1228,10 +1242,10 @@
   renderSyncUI();
   renderTradesBadge();
   pollInbox(); refreshTrades();
-  setInterval(function(){ if(document.visibilityState==='visible'){ pollInbox(); refreshTrades(); } }, 25000);
+  setInterval(function(){ if(document.visibilityState==='visible'){ pollInbox(); refreshTrades(); } }, 60000);
   if(syncCode){ cloudPull(false); startPoll(); }
   document.addEventListener('visibilitychange', function(){
-    if(document.visibilityState!=='visible') return;
+    if(document.visibilityState!=='visible'){ flushPush(); return; } // weggewischt -> letzte Änderung sichern
     if(syncCode) cloudPull(false);
     pollInbox(); refreshTrades();
   });
