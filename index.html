@@ -356,8 +356,9 @@
     </div>
     <input type="file" id="fileImport" accept="application/json" class="hidden" />
 
-    <div class="section-title">Tausche</div>
+    <div class="section-title">Freunde &amp; Tausche</div>
     <div class="row-btns">
+      <button class="btn btn-ghost" id="btnFriends" style="flex:1">Meine Freunde</button>
       <button class="btn btn-ghost" id="btnTrades" style="flex:1">Meine Tausche <span id="tradesBadge" class="tbadge hidden">0</span></button>
     </div>
 
@@ -395,6 +396,27 @@
     </div>
     <div class="row-btns">
       <button class="btn btn-ghost" id="btnCloseMenu" style="flex:1">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Meine-Freunde-Modal -->
+<div class="overlay" id="friendsModal">
+  <div class="sheet">
+    <div class="grabber"></div>
+    <h2>Meine Freunde</h2>
+    <p class="lead">Gespeicherte Alben deiner Freunde. Der Abgleich ist immer aktuell – dein Album zählt live mit.</p>
+
+    <div class="field">
+      <label for="friendSearch">Wer hat …? (Sticker eingeben + Enter)</label>
+      <input id="friendSearch" type="search" inputmode="text" placeholder="z. B. GER 4" />
+    </div>
+    <div id="friendSearchResult"></div>
+
+    <div class="section-title">Freunde</div>
+    <div id="friendsList"></div>
+    <div class="row-btns">
+      <button class="btn btn-primary" id="btnCloseFriends" style="flex:1">Schließen</button>
     </div>
   </div>
 </div>
@@ -548,7 +570,10 @@
       .catch(function(){});
   }
   // beim Schließen/Wegwischen letzte Änderung sicher wegschreiben
-  function flushPush(){ if(pushPending && syncCode) cloudPush(true); }
+  function flushPush(){
+    if(pushPending && syncCode) cloudPush(true);
+    if(friendCode) publishAlbum(true); // Freunde sehen den Stand deiner letzten Nutzung (schreibt nur bei Änderung)
+  }
   window.addEventListener('pagehide', flushPush);
   function cloudPull(showToast){
     if(!syncCode) return;
@@ -746,6 +771,99 @@
     trades=trades.filter(function(x){ return x.id!==t.id; });
     saveTrades(); renderTradesList(); renderTradesBadge(); toast('Aus Liste entfernt');
   }
+
+  /* ---------- Freunde: gespeicherte Alben (halb-live) ---------- */
+  var friendCode = localStorage.getItem('selfpanini_friendcode') || '';
+  var lastPubHash = localStorage.getItem('selfpanini_pubhash') || '';
+  var friends = (function(){ try{ return JSON.parse(localStorage.getItem('selfpanini_friends')||'[]'); }catch(e){ return []; } })();
+  function saveFriends(){ try{ localStorage.setItem('selfpanini_friends', JSON.stringify(friends)); }catch(e){} }
+  function ensureFriendCode(){ if(!friendCode){ friendCode='FR-'+genShareCode(); localStorage.setItem('selfpanini_friendcode', friendCode); } return friendCode; }
+  function hashOf(s){ var h=0; for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return String(h); }
+
+  // eigenes Album unter festem Freundes-Code veröffentlichen – nur wenn sich was geändert hat
+  function publishAlbum(keepalive){
+    var code=ensureFriendCode();
+    var h=hashOf(JSON.stringify({n:nick, s:state}));
+    if(h===lastPubHash) return Promise.resolve(code);
+    var opts={method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({v:1, nick:nick, state:state, updatedAt:Date.now()})};
+    if(keepalive) opts.keepalive=true;
+    return fetch(WORKER+'/a/'+encodeURIComponent(code), opts).then(function(){
+      lastPubHash=h; try{ localStorage.setItem('selfpanini_pubhash', h); }catch(e){}
+      return code;
+    }).catch(function(){ return code; });
+  }
+
+  function friendByCode(c){ for(var i=0;i<friends.length;i++){ if(friends[i].code && friends[i].code===c) return friends[i]; } return null; }
+  function saveFriendFromCtx(){
+    if(!tradeCtx || !tradeCtx.album){ toast('Kein Album zum Speichern'); return; }
+    var ex = tradeCtx.code ? friendByCode(tradeCtx.code) : null;
+    if(ex){ ex.name=tradeCtx.fname; ex.album=tradeCtx.album; ex.inbox=tradeCtx.inbox||ex.inbox; ex.ts=Date.now(); }
+    else friends.push({name:tradeCtx.fname, code:tradeCtx.code||'', inbox:tradeCtx.inbox||'', album:tradeCtx.album, ts:Date.now()});
+    saveFriends();
+    toast(ex?('Freund aktualisiert: '+tradeCtx.fname):('Als Freund gespeichert: '+tradeCtx.fname));
+  }
+  function refreshFriend(f){
+    if(!f.code){ toast('Nur Schnappschuss – bitte neuen Link öffnen'); return; }
+    fetch(WORKER+'/a/'+encodeURIComponent(f.code)).then(function(r){return r.json();}).then(function(d){
+      if(d && !d.empty && d.state){ f.album=d.state; if(d.nick) f.name=d.nick; f.ts=Date.now(); saveFriends(); renderFriendsList(); toast('Aktualisiert: '+f.name); }
+      else toast('Nichts Neues gefunden');
+    }).catch(function(){ toast('Cloud nicht erreichbar'); });
+  }
+  function removeFriend(f){ friends=friends.filter(function(x){return x!==f;}); saveFriends(); renderFriendsList(); toast('Freund entfernt'); }
+  function viewFriend(f){
+    tradeCtx={inbox:f.inbox||'', fname:f.name, code:f.code||'', album:f.album};
+    closeModal('friendsModal');
+    renderTrade(f.album, f.name);
+  }
+  function fmtDate(ts){ if(!ts) return '–'; var d=new Date(ts); return ('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+d.getFullYear(); }
+
+  function renderFriendsList(){
+    var box=document.getElementById('friendsList'); if(!box) return;
+    if(!friends.length){ box.innerHTML='<p class="lead">Noch keine Freunde gespeichert. Öffne den Tausch-Link eines Freundes und tippe dort auf „Als Freund speichern".</p>'; return; }
+    box.innerHTML='';
+    friends.slice().sort(function(a,b){ return (b.ts||0)-(a.ts||0); }).forEach(function(f){
+      var have=0, dup=0, get=0, give=0;
+      ORDER.forEach(function(id){
+        var v=f.album[id]||0, mine=countOf(id);
+        if(v>0) have++; if(v>1) dup++;
+        if(v>1 && mine===0) get++;
+        if(mine>1 && v===0) give++;
+      });
+      var d=document.createElement('div'); d.className='trade';
+      d.innerHTML='<div class="th"><span class="who">'+f.name+'</span><span class="st '+((get+give)?'new':'open')+'">'+((get+give)?((get+give)+' tauschbar'):'nichts zu tauschen')+'</span></div>'+
+        '<div class="ln"><b>Sein Album:</b> '+have+'/'+TOTAL+' · '+dup+' doppelt</div>'+
+        '<div class="ln"><b>Für dich:</b> '+get+' bekommen · '+give+' abgeben</div>'+
+        '<div class="ln muted">Stand: '+fmtDate(f.ts)+(f.code?'':' · nur Schnappschuss')+'</div>';
+      var btns=document.createElement('div'); btns.className='row-btns';
+      btns.appendChild(mkBtn('Ansehen','btn-primary',function(){ viewFriend(f); }));
+      if(f.code) btns.appendChild(mkBtn('Aktualisieren','btn-ghost',function(){ refreshFriend(f); }));
+      btns.appendChild(mkBtn('Entfernen','btn-ghost',function(){ removeFriend(f); }));
+      d.appendChild(btns);
+      box.appendChild(d);
+    });
+  }
+
+  // „Wer hat XY?" über alle gespeicherten Freunde
+  function friendSearch(val){
+    var box=document.getElementById('friendSearchResult'); if(!box) return;
+    box.innerHTML='';
+    var q=(val||'').trim().toUpperCase().replace(/\s+/g,'');
+    if(!q) return;
+    var m=q.match(/^([A-Z]+)(\d+)$/);
+    if(!m){ box.innerHTML='<p class="lead">Bitte so eingeben: z. B. GER 4 oder FWC 03</p>'; return; }
+    var code=(m[1]==='FWC')?'FCW':m[1];               // Anzeige FWC -> interne Kennung
+    var id=code+String(parseInt(m[2],10));
+    if(ORDER.indexOf(id)<0){ box.innerHTML='<p class="lead">Diesen Sticker gibt es nicht.</p>'; return; }
+    var mine=countOf(id), hasIt=[], missing=[];
+    friends.forEach(function(f){ var v=f.album[id]||0; if(v>1) hasIt.push(f.name); else if(v===0) missing.push(f.name); });
+    var d=document.createElement('div'); d.className='match';
+    d.innerHTML='<div class="mh get">'+labelFor(id)+'</div><div class="mb">'+
+      '<b>Du:</b> '+(mine===0?'fehlt dir':(mine>1?('hast du '+(mine-1)+'× doppelt'):'hast du'))+'<br>'+
+      '<b>Hat doppelt (kann dir geben):</b> '+(hasIt.length?hasIt.join(', '):'niemand')+'<br>'+
+      '<b>Fehlt bei:</b> '+(missing.length?missing.join(', '):'niemandem')+'</div>';
+    box.appendChild(d);
+  }
   function renderTradesBadge(){
     var b=document.getElementById('tradesBadge'); if(!b) return;
     var n=trades.filter(function(t){ return t.role==='owner' && t.status==='open'; }).length;
@@ -935,8 +1053,8 @@
     if(t){ document.getElementById('team-'+t.code).scrollIntoView({behavior:'smooth'}); return; }
     var m=q.replace(/\s+/g,'').match(/^([a-z]+)(\d+)$/);
     if(m){
-      var code=m[1].toUpperCase();
-      var cell=document.querySelector('.cell[data-id="'+code+m[2]+'"]');
+      var code=m[1].toUpperCase(); if(code==='FWC') code='FCW';   // Anzeige FWC -> interne Kennung
+      var cell=document.querySelector('.cell[data-id="'+code+String(parseInt(m[2],10))+'"]'); // führende Nullen egal
       if(cell){ cell.scrollIntoView({behavior:'smooth',block:'center'});
         cell.animate([{boxShadow:'0 0 0 0 rgba(51,167,140,.8)'},{boxShadow:'0 0 0 10px rgba(51,167,140,0)'}],{duration:700}); }
     }
@@ -1031,11 +1149,15 @@
     var inbox = params.i ? decodeURIComponent(params.i) : '';
     if(params.t){
       decodeState(decodeURIComponent(params.t)).then(function(friend){
-        if(friend){ tradeCtx={inbox:inbox, fname:fname}; renderTrade(friend, fname); }
+        if(friend){ tradeCtx={inbox:inbox, fname:fname, code:'', album:friend}; renderTrade(friend, fname); }
       });
     } else if(params.s){
       fetch(WORKER+'/a/'+encodeURIComponent(params.s)).then(function(r){return r.json();}).then(function(d){
-        if(d && !d.empty && d.state){ var fn=d.nick||fname; tradeCtx={inbox:inbox, fname:fn}; renderTrade(d.state, fn); }
+        if(d && !d.empty && d.state){
+          var fn=d.nick||fname;
+          tradeCtx={inbox:inbox, fname:fn, code:decodeURIComponent(params.s), album:d.state};
+          renderTrade(d.state, fn);
+        }
         else toast('Tausch-Code nicht gefunden');
       }).catch(function(){ toast('Cloud nicht erreichbar'); });
     }
@@ -1053,6 +1175,14 @@
 
     document.getElementById('tradeTitle').textContent = fname+' – Tausch';
     var body=document.getElementById('tradeBody'); body.innerHTML='';
+    if(tradeCtx && tradeCtx.album){
+      var sv=document.createElement('div'); sv.className='row-btns'; sv.style.margin='0 0 10px';
+      var known=!!(tradeCtx.code && friendByCode(tradeCtx.code));
+      var sb=mkBtn(known?'Freund aktualisieren':'Als Freund speichern','btn-ghost',function(){
+        saveFriendFromCtx(); sb.textContent='Gespeichert ✓';
+      });
+      sb.style.flex='1'; sv.appendChild(sb); body.appendChild(sv);
+    }
     if(iHaveAny){
       document.getElementById('tradeLead').textContent='Vergleich mit deiner Sammlung:';
       body.appendChild(matchBlock('get','Das kannst DU von '+fname+' bekommen', youGet, fname+' hat diese doppelt und dir fehlen sie.'));
@@ -1124,6 +1254,17 @@
   document.getElementById('btnCloseMenu').onclick=function(){ closeModal('menuModal'); };
   document.getElementById('btnTrades').onclick=function(){ renderTradesList(); openModal('tradesModal'); pollInbox(); refreshTrades(); };
   document.getElementById('btnCloseTrades').onclick=function(){ closeModal('tradesModal'); };
+  document.getElementById('btnFriends').onclick=function(){
+    document.getElementById('friendSearch').value='';
+    document.getElementById('friendSearchResult').innerHTML='';
+    renderFriendsList(); openModal('friendsModal');
+  };
+  document.getElementById('btnCloseFriends').onclick=function(){ closeModal('friendsModal'); };
+  (function(){
+    var fs=document.getElementById('friendSearch');
+    fs.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); friendSearch(fs.value); fs.blur(); } });
+    fs.addEventListener('search', function(){ friendSearch(fs.value); });
+  })();
   document.getElementById('btnSyncNew').onclick=createCode;
   document.getElementById('btnSyncConnect').onclick=function(){ connectCode(document.getElementById('syncInput').value); };
   document.getElementById('btnSyncCopy').onclick=function(){ copy(syncCode,'Code kopiert!'); };
@@ -1150,12 +1291,11 @@
   // Kurzer Cloud-Link: Sammlung als Schnappschuss unter kurzem Code ablegen
   function genShareCode(){ var A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', s=''; for(var i=0;i<6;i++) s+=A[Math.floor(Math.random()*A.length)]; return s; }
   document.getElementById('btnShortLink').onclick=function(){
-    var code=genShareCode();
-    var link=location.href.split('#')[0]+'#s='+code+'&i='+ensureInbox()+(nick?('&n='+encodeURIComponent(nick)):'');
-    var payload=JSON.stringify({v:1, nick:nick, state:state, updatedAt:Date.now()});
-    fetch(WORKER+'/a/'+encodeURIComponent(code), {method:'PUT', headers:{'Content-Type':'application/json'}, body:payload})
-      .then(function(r){ if(r.ok) shareOrCopy(link,'Kurzer Tausch-Link kopiert!'); else toast('Cloud nicht erreichbar'); })
-      .catch(function(){ toast('Cloud nicht erreichbar'); });
+    // fester Freundes-Code: Freunde können damit später aktualisieren
+    publishAlbum(false).then(function(code){
+      var link=location.href.split('#')[0]+'#s='+code+'&i='+ensureInbox()+(nick?('&n='+encodeURIComponent(nick)):'');
+      shareOrCopy(link,'Kurzer Tausch-Link kopiert!');
+    }).catch(function(){ toast('Cloud nicht erreichbar'); });
   };
 
   /* ---------- Backup ---------- */
@@ -1241,6 +1381,7 @@
   buildAll();
   renderSyncUI();
   renderTradesBadge();
+  if(friendCode) publishAlbum(false); // Offline gemachte Änderungen einmal nachziehen
   pollInbox(); refreshTrades();
   setInterval(function(){ if(document.visibilityState==='visible'){ pollInbox(); refreshTrades(); } }, 60000);
   if(syncCode){ cloudPull(false); startPoll(); }
